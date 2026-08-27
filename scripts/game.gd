@@ -28,10 +28,17 @@ const MAP_NODE_STEP := (MAP_BOTTOM_NODE_Y - MAP_TOP_NODE_Y) / 9.0
 const PLAY_RIGHT := 800.0
 const FLOOR_Y := H - 175.0
 const GROUND_LINE_Y := H - 90.0
-const SQUIRREL_BASE_SCALE := 0.52
-# At 0.52 scale, this preserves the same visual foot contact on the ground line.
-const SQUIRREL_FOOT_OFFSET := 35.45
+const SQUIRREL_BASE_SCALE := 0.64
+# The packed pose's visible feet sit this far below the cell origin at scale 1.
+const SQUIRREL_FOOT_SOURCE_OFFSET := 68.17308
+const SQUIRREL_FOOT_OFFSET := SQUIRREL_FOOT_SOURCE_OFFSET * SQUIRREL_BASE_SCALE
 const SQUIRREL_Y := GROUND_LINE_Y - SQUIRREL_FOOT_OFFSET
+const TITLE_CARD_RECT := Rect2(90.0, 190.0, 900.0, 680.0)
+const TITLE_SQUIRREL_SCALE := 0.70
+const TITLE_SQUIRREL_SOURCE_SIZE := Vector2(1172.0, 1342.0)
+const TITLE_SQUIRREL_SOURCE_BOUNDS := Rect2(82.0, 52.0, 901.0, 1181.0)
+const TITLE_SQUIRREL_VISIBLE_FEET_Y := 1232.0
+const TITLE_SQUIRREL_POSITION := Vector2(W * 0.5, GROUND_LINE_Y - (TITLE_SQUIRREL_VISIBLE_FEET_Y - TITLE_SQUIRREL_SOURCE_SIZE.y * 0.5) * TITLE_SQUIRREL_SCALE)
 const IDLE_BOB_PIXELS := 3.0
 const IDLE_BREATH_SCALE := 0.018
 const IDLE_BREATH_SPEED := 3.0
@@ -39,6 +46,8 @@ const IDLE_SWAY_RADIANS := 0.018
 const IDLE_SWAY_SPEED := 2.4
 const FLATTEN_HOLD_SECONDS := 1.5
 const POP_RECOVERY_SECONDS := 0.55
+const ICICLE_BASE_ROTATION := 0.0
+const ICICLE_WOBBLE_RADIANS := 0.055
 const LANE_X := [105.0, 270.0, 435.0, 600.0, 765.0]
 const ACORN_COLORS := [Color("#bb7136"), Color("#c94838"), Color("#8064a8"), Color("#e3ae35")]
 const ACORN_NAMES := ["Oak", "Redcap", "Striped", "Gold"]
@@ -59,6 +68,7 @@ var player_lane := 2
 var player_x := LANE_X[2]
 var player_target_x := player_x
 var squirrel: AnimatedSprite2D
+var title_squirrel: Sprite2D
 var carry_sprites: Array[Sprite2D] = []
 var sheet: Texture2D
 var background: Texture2D
@@ -68,6 +78,10 @@ var item_textures: Dictionary = {}
 var hazard_texture: Texture2D
 var branch_texture: Texture2D
 var leaf_texture: Texture2D
+var title_squirrel_texture: Texture2D
+var bark_texture: Texture2D
+var moss_texture: Texture2D
+var leaf_button_texture: Texture2D
 var save_data := {"version": 1, "unlocked": 1, "ratings": {}, "music": true, "sfx": true, "haptics": true}
 var paused := false
 var recover_phase := 0
@@ -95,6 +109,10 @@ func _ready() -> void:
     hazard_texture = load("res://assets/art/items/seasonal_hazards.png")
     branch_texture = load("res://assets/art/items/branch_clean_v1.png")
     leaf_texture = load("res://assets/art/items/leaf_strip.png")
+    title_squirrel_texture = load("res://assets/art/squirrel_front_acorn_v1.png")
+    bark_texture = load("res://assets/art/ui_textures/oak_bark_tile_v1.png")
+    moss_texture = load("res://assets/art/ui_textures/moss_panel_tile_v1.png")
+    leaf_button_texture = load("res://assets/art/ui_textures/leaf_button_plaque_v1.png")
     _load_save()
     _make_squirrel()
     _make_audio()
@@ -152,6 +170,15 @@ func _make_squirrel() -> void:
         carried.z_index = 2
         add_child(carried)
         carry_sprites.append(carried)
+    title_squirrel = Sprite2D.new()
+    title_squirrel.name = "TitleFrontSquirrel"
+    title_squirrel.texture = title_squirrel_texture
+    title_squirrel.centered = true
+    title_squirrel.position = TITLE_SQUIRREL_POSITION
+    title_squirrel.scale = Vector2.ONE * TITLE_SQUIRREL_SCALE
+    title_squirrel.z_index = 1
+    title_squirrel.visible = false
+    add_child(title_squirrel)
 
 func _sheet_frame(index: int) -> Texture2D:
     if sheet == null: return null
@@ -198,12 +225,10 @@ func _begin_tree_crossing(target_page: int) -> void:
     crossing_time = 0.6
 
 func _apply_screen_squirrel() -> void:
+    if title_squirrel != null:
+        title_squirrel.visible = screen == "title"
     if screen == "title":
-        squirrel.visible = true
-        squirrel.position = Vector2(W * 0.5, 1385.0)
-        squirrel.scale = Vector2.ONE * 0.68
-        squirrel.rotation = 0.0
-        if squirrel.animation != "idle": squirrel.play("idle")
+        squirrel.visible = false
     elif screen == "results":
         squirrel.visible = true
         squirrel.position = RESULTS_SQUIRREL_POSITION
@@ -277,7 +302,12 @@ func _move_drop(drop: Dictionary, delta: float) -> void:
                 drop.age = 0.0
             return
         drop.y += drop.speed * delta * (1.0 + drop.age * 0.32)
-        drop.rotation += delta * (0.85 + drop.wobble)
+        if str(drop.skin) == "icicle":
+            # The source cell narrows toward its bottom edge, so zero rotation is
+            # point-down. Keep its fall vertical with only a small returning sway.
+            drop.rotation = ICICLE_BASE_ROTATION + sin(drop.age * 2.8 + drop.seed) * ICICLE_WOBBLE_RADIANS
+        else:
+            drop.rotation += delta * (0.85 + drop.wobble)
         drop.x = drop.base_x + sin(drop.age * 3.7 + drop.seed) * 18.0
     elif drop.kind == "leaf":
         drop.y += drop.speed * delta
@@ -347,8 +377,13 @@ func _catch(drop: Dictionary) -> void:
     _update_carry_stack()
 
 func _limb_hits_player(drop: Dictionary) -> bool:
+    if str(drop.get("phase", "falling")) != "falling":
+        return false
     var half_width := 72.0 + 74.0 * float(drop.width - 1)
     return drop.y > FLOOR_Y - 100.0 and drop.y < FLOOR_Y + 85.0 and absf(drop.x - player_x) < half_width
+
+func _limb_is_visible(drop: Dictionary) -> bool:
+    return str(drop.get("phase", "warning")) == "falling"
 
 func _limb_hit(drop: Dictionary) -> void:
     drops.clear()
@@ -556,7 +591,18 @@ func _text(text: String, pos: Vector2, size: int, color := Color.WHITE, align :=
     draw_string(_font(), pos, text, align, width, size, color)
 
 func _panel(rect: Rect2, color := Color("#253d32", 0.9)) -> void:
-    draw_style_box(_round_box(color, 28), rect)
+    _draw_textured_panel(rect, color)
+
+func _draw_textured_panel(rect: Rect2, color: Color, radius := 28) -> void:
+    if bark_texture != null:
+        draw_texture_rect(bark_texture, rect, true, Color(1.0, 0.82, 0.63, 0.72))
+    else:
+        draw_rect(rect, Color("#75472d"))
+    var inset := rect.grow(-12.0)
+    if moss_texture != null and inset.size.x > 0.0 and inset.size.y > 0.0:
+        draw_texture_rect(moss_texture, inset, true, Color(0.66, 0.88, 0.62, 0.27))
+    draw_rect(rect, Color(color.r, color.g, color.b, color.a * 0.48))
+    draw_style_box(_round_box(Color(0.0, 0.0, 0.0, 0.0), radius), rect)
 
 func _round_box(color: Color, radius: int) -> StyleBoxFlat:
     var box := StyleBoxFlat.new()
@@ -568,16 +614,15 @@ func _round_box(color: Color, radius: int) -> StyleBoxFlat:
     return box
 
 func _draw_title() -> void:
-    _panel(Rect2(95, 420, 890, 760), Color("#234538", 0.91))
-    _text("Nuts!", Vector2(0, 620), 182, Color("#fff1ad"), HORIZONTAL_ALIGNMENT_CENTER, W)
-    _text("Catch the acorns in recipe order", Vector2(0, 705), 42, Color("#fff9dd"), HORIZONTAL_ALIGNMENT_CENTER, W)
-    _text("Drag the squirrel through five lanes", Vector2(0, 765), 32, Color("#cfe4bd"), HORIZONTAL_ALIGNMENT_CENTER, W)
-    _panel(Rect2(265, 900, 550, 130), Color("#c87538", 0.96))
-    _text(TITLE_CTA, Vector2(0, 985), 46, Color.WHITE, HORIZONTAL_ALIGNMENT_CENTER, W)
-    _text("A woodland pocket game", Vector2(0, 1100), 25, Color("#d5e6ca"), HORIZONTAL_ALIGNMENT_CENTER, W)
+    _draw_wood_panel(TITLE_CARD_RECT, Color("#234538", 0.91))
+    _text("Nuts!", Vector2(0, 410), 164, Color("#fff1ad"), HORIZONTAL_ALIGNMENT_CENTER, W)
+    _text("Catch the acorns in recipe order", Vector2(0, 500), 39, Color("#fff9dd"), HORIZONTAL_ALIGNMENT_CENTER, W)
+    _text("Drag the squirrel through five lanes", Vector2(0, 558), 30, Color("#d8ecc8"), HORIZONTAL_ALIGNMENT_CENTER, W)
+    _draw_leaf_button(Rect2(265, 635, 550, 112), TITLE_CTA, true, Color("#b76a39"))
+    _text("A woodland pocket game", Vector2(0, 820), 25, Color("#e3efcf"), HORIZONTAL_ALIGNMENT_CENTER, W)
 
 func _draw_map() -> void:
-    _panel(Rect2(55, SAFE_TOP, 970, 130), Color("#234238", 0.9))
+    _draw_wood_panel(Rect2(55, SAFE_TOP, 970, 130), Color("#234238", 0.9))
     _text("TREE %d TRAIL" % map_page, Vector2(95, SAFE_TOP + 123), 62, Color("#fff0ac"))
     _text("ROOTS TO CROWN", Vector2(615, SAFE_TOP + 100), 26, Color("#d7e9cc"))
     _panel(Rect2(880, 92, 105, 90), Color("#6f8c70"))
@@ -593,8 +638,7 @@ func _draw_map() -> void:
         var p := _map_node_position(n)
         var unlocked := n <= int(save_data.unlocked)
         var completed := int(save_data.ratings.get(str(n), 0)) > 0
-        draw_circle(p, 76, Color("#8d5a33") if unlocked else Color("#45514b"))
-        draw_circle(p, 61, Color("#d9a15c") if completed else Color("#b57842") if unlocked else Color("#69746c"))
+        _draw_textured_medallion(p, 76.0, unlocked, completed)
         draw_arc(p, 76, 0, TAU, 32, Color("#fff0b4", 0.78), 5)
         if n == int(save_data.unlocked):
             draw_arc(p, 91 + sin(elapsed * 4.0) * 5.0, 0, TAU, 32, Color("#fff3a8", 0.9), 5)
@@ -602,19 +646,20 @@ func _draw_map() -> void:
         var stars := int(save_data.ratings.get(str(n), 0))
         for slot in range(3):
             _draw_collectible(p + Vector2(-38 + slot * 38, 105), 0.0, slot, 0.25, "acorn", slot >= stars)
+        _panel(Rect2(p.x - 112.0, p.y - 122.0, 224.0, 42.0), Color("#315544", 0.78))
         _text(LevelData.NAMES[n-1], p + Vector2(-105, -91), 23, Color("#f6f2ce"), HORIZONTAL_ALIGNMENT_CENTER, 210)
-    _draw_button(Rect2(55, 210, 125, 76), "TREE 1", map_page == 2)
-    _draw_button(Rect2(860, 210, 165, 76), "TREE 2", map_page == 1 and int(save_data.unlocked) >= 11)
+    _draw_leaf_button(Rect2(55, 210, 125, 76), "TREE 1", map_page == 2, Color("#6c8757"))
+    _draw_leaf_button(Rect2(860, 210, 165, 76), "TREE 2", map_page == 1 and int(save_data.unlocked) >= 11, Color("#6c8757"))
     if map_page == 1 and int(save_data.unlocked) >= 11 and crossing_time <= 0.0:
         _text("CROSS THE BRANCH", Vector2(0, 316), 23, Color("#fff1b7"), HORIZONTAL_ALIGNMENT_CENTER, W)
     _text("Follow the branches from the roots to the crown.", Vector2(0, 1815), 26, Color("#eef1d7"), HORIZONTAL_ALIGNMENT_CENTER, W)
 
 func _draw_settings() -> void:
-    _panel(Rect2(105, 420, 870, 760))
+    _draw_wood_panel(Rect2(105, 420, 870, 760))
     _text("SETTINGS", Vector2(0, 545), 70, Color("#fff0ac"), HORIZONTAL_ALIGNMENT_CENTER, W)
-    _draw_button(Rect2(175, 620, 730, 76), "MUSIC     " + ("ON" if save_data.music else "OFF"), bool(save_data.music))
-    _draw_button(Rect2(175, 725, 730, 76), "SOUND EFFECTS     " + ("ON" if save_data.sfx else "OFF"), bool(save_data.sfx))
-    _draw_button(Rect2(175, 830, 730, 76), "HAPTICS     " + ("ON" if save_data.haptics else "OFF"), bool(save_data.haptics))
+    _draw_leaf_button(Rect2(175, 620, 730, 76), "MUSIC     " + ("ON" if save_data.music else "OFF"), bool(save_data.music), Color("#648957"))
+    _draw_leaf_button(Rect2(175, 725, 730, 76), "SOUND EFFECTS     " + ("ON" if save_data.sfx else "OFF"), bool(save_data.sfx), Color("#648957"))
+    _draw_leaf_button(Rect2(175, 830, 730, 76), "HAPTICS     " + ("ON" if save_data.haptics else "OFF"), bool(save_data.haptics), Color("#648957"))
     _text("Tap outside a switch to return", Vector2(0, 1030), 31, Color("#d5e6ca"), HORIZONTAL_ALIGNMENT_CENTER, W)
 
 func _draw_results() -> void:
@@ -641,11 +686,15 @@ func _results_squirrel_visual_rect() -> Rect2:
     var top_left := RESULTS_SQUIRREL_POSITION + (RESULTS_SQUIRREL_SOURCE_BOUNDS.position - Vector2(256.0, 256.0)) * RESULTS_SQUIRREL_SCALE
     return Rect2(top_left, RESULTS_SQUIRREL_SOURCE_BOUNDS.size * RESULTS_SQUIRREL_SCALE)
 
+func _title_squirrel_visual_rect() -> Rect2:
+    var top_left := TITLE_SQUIRREL_POSITION + (TITLE_SQUIRREL_SOURCE_BOUNDS.position - TITLE_SQUIRREL_SOURCE_SIZE * 0.5) * TITLE_SQUIRREL_SCALE
+    return Rect2(top_left, TITLE_SQUIRREL_SOURCE_BOUNDS.size * TITLE_SQUIRREL_SCALE)
+
 func _draw_game() -> void:
     if bool(definition.get("theme", {}).get("ambient", false)):
         _draw_ambient_snow()
     _draw_goal()
-    _panel(Rect2(38, SAFE_TOP, 505, 94), Color("#244338",0.88))
+    _draw_wood_panel(Rect2(38, SAFE_TOP, 505, 94), Color("#244338",0.88))
     _text("LEVEL %d  %s" % [level_number, definition.name], Vector2(65, SAFE_TOP + 62), 31, Color("#fff0b0"))
     _panel(PAUSE_RECT, Color("#6e875e"))
     _text("II", Vector2(972, SAFE_TOP + 58), 30)
@@ -658,11 +707,11 @@ func _draw_game() -> void:
         _panel(Rect2(80, 1290, 700, 90), Color("#315443",0.93))
         _text(status_text, Vector2(105, 1350), 35, Color("#fff5cc"), HORIZONTAL_ALIGNMENT_CENTER, 650)
     if paused:
-        _panel(PAUSE_MODAL_RECT, Color("#203b34",0.96))
+        _draw_wood_panel(PAUSE_MODAL_RECT, Color("#203b34",0.96))
         _text("PAUSED", Vector2(0, 790), 72, Color("#fff0ac"), HORIZONTAL_ALIGNMENT_CENTER, W)
-        _draw_button(PAUSE_BUTTON_RECTS[0], "RESUME", true)
-        _draw_button(PAUSE_BUTTON_RECTS[1], "RETRY", true)
-        _draw_button(PAUSE_BUTTON_RECTS[2], "TREE TRAIL", true)
+        _draw_leaf_button(PAUSE_BUTTON_RECTS[0], "RESUME", true, Color("#69895a"))
+        _draw_leaf_button(PAUSE_BUTTON_RECTS[1], "RETRY", true, Color("#a4653b"))
+        _draw_leaf_button(PAUSE_BUTTON_RECTS[2], "TREE TRAIL", true, Color("#5f8958"))
 
 func _draw_ambient_snow() -> void:
     for i in 28:
@@ -674,7 +723,7 @@ func _draw_button(rect: Rect2, label: String, enabled: bool) -> void:
     _panel(rect, Color("#c87538", 0.97) if enabled else Color("#596257", 0.92))
     _text(label, Vector2(rect.position.x, rect.position.y + rect.size.y * 0.67), 29, Color.WHITE, HORIZONTAL_ALIGNMENT_CENTER, rect.size.x)
 
-func _draw_wood_panel(rect: Rect2, color: Color) -> void:
+func _draw_wood_panel(rect: Rect2, color := Color("#253d32", 0.9)) -> void:
     _panel(rect, color)
     var inset := 17.0
     draw_line(Vector2(rect.position.x + inset, rect.position.y + inset), Vector2(rect.end.x - inset, rect.position.y + inset), Color("#f2d489", 0.34), 4.0)
@@ -691,9 +740,12 @@ func _draw_nature_heading(rect: Rect2, label: String) -> void:
     _text(label, Vector2(rect.position.x, rect.position.y + 115.0), 58, Color("#fff3b7"), HORIZONTAL_ALIGNMENT_CENTER, rect.size.x)
 
 func _draw_tree_ring(center: Vector2, radius: float) -> void:
-    draw_circle(center, radius + 18.0, Color("#523321", 0.9))
-    draw_circle(center, radius, Color("#a56438", 0.98))
-    draw_circle(center, radius - 20.0, Color("#d29a5b", 0.98))
+    var texture_rect := Rect2(center - Vector2.ONE * radius, Vector2.ONE * radius * 2.0)
+    if bark_texture != null:
+        draw_texture_rect(bark_texture, texture_rect, false, Color(1.0, 0.78, 0.55, 0.72))
+    draw_circle(center, radius + 18.0, Color("#523321", 0.78))
+    draw_circle(center, radius, Color("#a56438", 0.72))
+    draw_circle(center, radius - 20.0, Color("#d29a5b", 0.68))
     for ring in [0.25, 0.46, 0.67, 0.84]:
         draw_arc(center + Vector2(-12.0, 8.0), (radius - 30.0) * ring, -2.7, 2.5, 42, Color("#805035", 0.47), 3.0)
     for notch in 16:
@@ -712,12 +764,17 @@ func _draw_leaf(center: Vector2, color: Color, scale: float, rotation: float) ->
 func _draw_leaf_button(rect: Rect2, label: String, enabled: bool, color: Color) -> void:
     var button_color := color if enabled else Color("#596257", 0.94)
     _draw_wood_panel(rect, button_color)
+    if leaf_button_texture != null:
+        var plaque_height := rect.size.y * 1.04
+        var plaque_width := minf(rect.size.x - 16.0, plaque_height * float(leaf_button_texture.get_width()) / float(leaf_button_texture.get_height()))
+        var plaque_rect := Rect2(rect.get_center() - Vector2(plaque_width, plaque_height) * 0.5, Vector2(plaque_width, plaque_height))
+        draw_texture_rect(leaf_button_texture, plaque_rect, false, Color(1.0, 1.0, 1.0, 0.9 if enabled else 0.42))
     _draw_leaf(rect.position + Vector2(31.0, rect.size.y * 0.5), Color("#d8ae55"), 0.55, -0.55)
     _draw_leaf(rect.end - Vector2(31.0, rect.size.y * 0.5), Color("#e1bd63"), 0.55, 0.55)
     _text(label, Vector2(rect.position.x, rect.position.y + rect.size.y * 0.66), 29, Color.WHITE if enabled else Color("#d3d8ce"), HORIZONTAL_ALIGNMENT_CENTER, rect.size.x)
 
 func _draw_goal() -> void:
-    _panel(Rect2(824, 235, 228, 790), Color("#244239",0.93))
+    _draw_wood_panel(Rect2(824, 235, 228, 790), Color("#244239",0.93))
     _text("GOAL", Vector2(850, 292), 36, Color("#fff0aa"))
     for i in logic.recipe.size():
         var y := 920.0 - i * 125.0
@@ -776,12 +833,18 @@ func _draw_settings_gear(center: Vector2, radius: float) -> void:
     draw_circle(center, radius, Color("#fff0b4"))
     draw_circle(center, radius * 0.42, Color("#52705e"))
 
+func _draw_textured_medallion(center: Vector2, radius: float, unlocked: bool, completed: bool) -> void:
+    var rect := Rect2(center - Vector2.ONE * radius, Vector2.ONE * radius * 2.0)
+    if bark_texture != null:
+        draw_texture_rect(bark_texture, rect, false, Color(0.85, 0.68, 0.46, 0.76) if unlocked else Color(0.38, 0.43, 0.40, 0.76))
+    draw_circle(center, radius, Color("#8d5a33", 0.78) if unlocked else Color("#45514b", 0.92))
+    draw_circle(center, radius - 15.0, Color("#d9a15c", 0.62) if completed else Color("#b57842", 0.58) if unlocked else Color("#69746c", 0.72))
+
 func _draw_drop(drop: Dictionary) -> void:
     if drop.kind == "limb":
-        if drop.phase == "warning":
+        if not _limb_is_visible(drop):
             var shadow_w: float = 82.0 + 90.0 * drop.width * drop.shadow
             _draw_shadow_ellipse(Vector2(drop.base_x, FLOOR_Y+55), Vector2(shadow_w, 16 + 20*drop.shadow), Color("#202016",0.13 + 0.26*drop.shadow))
-            draw_arc(Vector2(drop.base_x, FLOOR_Y+55), shadow_w, 0, TAU, 20, Color("#ffd66b", drop.shadow), 5)
             _text("RUSTLE!", Vector2(drop.base_x-72, FLOOR_Y-155), 24, Color("#ffe998"))
         else:
             _draw_hazard(Vector2(drop.x, drop.y), drop.rotation, str(drop.skin), drop.variant, 1.35 * drop.width)

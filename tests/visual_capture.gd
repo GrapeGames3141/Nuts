@@ -42,6 +42,16 @@ func _init() -> void:
         scene.paused = false
         scene._start_level(4); scene.logic.progress = scene.logic.recipe.size(); scene._finish_level(); await capture(scene, "results_acorn", size)
         scene._start_level(19); scene.logic.progress = scene.logic.recipe.size(); scene._finish_level(); await capture(scene, "results_winter_pinecone", size)
-        scene._start_level(8); scene._limb_hit({}); scene.squirrel.frame = 1; scene._update_recovery(0.0); await capture(scene, "recovery", size)
+        scene._start_level(8)
+        scene.drops = [{"kind":"limb", "phase":"warning", "base_x":scene.LANE_X[2], "x":scene.LANE_X[2], "y":-120.0,
+            "warning":1.35, "age":0.5, "shadow":0.38, "width":1, "speed":500.0, "rotation":0.0, "wobble":0.0, "seed":0.0, "skin":"branch", "variant":-1}]
+        await capture(scene, "limb_warning", size)
+        scene.drops[0].phase = "falling"; scene.drops[0].y = 320.0; await capture(scene, "limb_active", size)
+        scene._start_level(9)
+        scene.drops = [{"kind":"limb", "phase":"falling", "base_x":scene.LANE_X[2], "x":scene.LANE_X[2], "y":360.0,
+            "warning":1.35, "age":0.45, "shadow":1.0, "width":1, "speed":500.0, "rotation":0.02, "wobble":0.0, "seed":0.0, "skin":"icicle", "variant":-1}]
+        await capture(scene, "icicle_fall", size)
+        scene._start_level(8); scene._limb_hit({}); await capture(scene, "flatten", size)
+        scene.squirrel.frame = 1; scene._update_recovery(0.0); await capture(scene, "recovery", size)
     print("VISUAL_CAPTURE_PASS user://qa")
     quit()
