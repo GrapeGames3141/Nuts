@@ -9,8 +9,15 @@ const H := 1920.0
 const PLAY_RIGHT := 800.0
 const FLOOR_Y := 1510.0
 const GROUND_LINE_Y := FLOOR_Y + 85.0
-# The generated sprite's feet sit 30 px below its visual center at this scale.
-const SQUIRREL_Y := FLOOR_Y + 55.0
+const SQUIRREL_BASE_SCALE := 0.52
+# At 0.52 scale, this preserves the same visual foot contact on the ground line.
+const SQUIRREL_FOOT_OFFSET := 35.45
+const SQUIRREL_Y := GROUND_LINE_Y - SQUIRREL_FOOT_OFFSET
+const IDLE_BOB_PIXELS := 3.0
+const IDLE_BREATH_SCALE := 0.018
+const IDLE_BREATH_SPEED := 3.0
+const IDLE_SWAY_RADIANS := 0.018
+const IDLE_SWAY_SPEED := 2.4
 const FLATTEN_HOLD_SECONDS := 1.5
 const POP_RECOVERY_SECONDS := 0.55
 const LANE_X := [105.0, 270.0, 435.0, 600.0, 765.0]
@@ -42,6 +49,7 @@ var rng := RandomNumberGenerator.new()
 var audio_player: AudioStreamPlayer
 var music_player: AudioStreamPlayer
 var audio_bank: NutsProceduralAudio
+var idle_time := 0.0
 
 func _ready() -> void:
     rng.seed = 84519
@@ -77,7 +85,7 @@ func _make_squirrel() -> void:
     squirrel = AnimatedSprite2D.new()
     squirrel.name = "SquirrelAnimatedSprite"
     squirrel.position = Vector2(player_x, SQUIRREL_Y)
-    squirrel.scale = Vector2(0.44, 0.44)
+    squirrel.scale = Vector2.ONE * SQUIRREL_BASE_SCALE
     squirrel.centered = true
     sheet = load("res://assets/art/squirrel_sheet_clean.png")
     if sheet == null:
@@ -119,11 +127,12 @@ func _update_play(delta: float) -> void:
         _spawn_event(events[event_cursor])
         event_cursor += 1
     player_x = move_toward(player_x, player_target_x, delta * 1320.0)
-    squirrel.position = Vector2(player_x, SQUIRREL_Y)
     if absf(player_x - player_target_x) > 12.0:
+        _reset_squirrel_visual()
         squirrel.play("run_left" if player_target_x < player_x else "run_right")
-    elif squirrel.animation != "idle":
-        squirrel.play("idle")
+    else:
+        if squirrel.animation != "idle": squirrel.play("idle")
+        _apply_idle_visual(delta)
     for drop in drops.duplicate():
         _move_drop(drop, delta)
         if drop.kind == "limb" and drop.phase == "falling" and _limb_hits_player(drop):
@@ -147,6 +156,7 @@ func _update_recovery(delta: float) -> void:
         # The final flattened frame now remains on screen for a readable 1.5 s hold.
         recover_phase = 2
         recover_time = 0.0
+        _reset_squirrel_visual()
         squirrel.play("pop")
         status_text = "Shake it off!"
     elif recover_phase == 2 and recover_time >= POP_RECOVERY_SECONDS:
@@ -157,6 +167,7 @@ func _update_recovery(delta: float) -> void:
         event_cursor = 0
         drops.clear()
         logic.reset_after_limb()
+        _reset_squirrel_visual()
         squirrel.play("idle")
         status_text = "Try again!"
         status_time = 1.2
@@ -202,8 +213,26 @@ func _ensure_next_target() -> void:
             return
     # A missed required acorn is harmless: produce an unambiguous replacement.
     if event_cursor >= events.size() and elapsed > 0.75:
-        _spawn_event({"kind": "acorn", "variant": wanted, "lane": (player_lane + 2) % 5, "speed": definition.base_speed, "warning": 0.0})
+        _spawn_event({"kind": "acorn", "variant": wanted, "lane": _replacement_lane(), "speed": definition.base_speed, "warning": 0.0})
         elapsed = -2.5
+
+func _replacement_lane() -> int:
+    # Prefer a lane whose speed-aware arrival time does not coincide with an active acorn.
+    var replacement_eta := LevelData.SPAWN_TO_CATCH_DISTANCE / float(definition.base_speed)
+    var window := LevelData.acorn_arrival_safety_window(level_number)
+    for offset in range(5):
+        var lane := (player_lane + 2 + offset) % 5
+        var clear := true
+        for drop in drops:
+            if drop.kind != "acorn" or drop.lane != lane:
+                continue
+            var active_eta := maxf(0.0, (FLOOR_Y - float(drop.y)) / maxf(1.0, float(drop.speed)))
+            if absf(active_eta - replacement_eta) < window:
+                clear = false
+                break
+        if clear:
+            return lane
+    return (player_lane + 2) % 5
 
 func _catch(drop: Dictionary) -> void:
     var outcome := logic.catch_object(drop.kind, drop.variant)
@@ -230,6 +259,7 @@ func _limb_hit(drop: Dictionary) -> void:
     for i in 22:
         particles.append({"p": Vector2(player_x, FLOOR_Y), "v": Vector2(rng.randf_range(-390,390), rng.randf_range(-380,-80)), "life": rng.randf_range(0.45, 0.95), "color": Color("#8d5533")})
     logic.catch_object("limb", -1)
+    _reset_squirrel_visual()
     squirrel.play("flatten")
     screen = "recover"
     recover_phase = 0
@@ -246,6 +276,7 @@ func _finish_level() -> void:
     _save()
     screen = "results"
     drops.clear()
+    _reset_squirrel_visual()
     squirrel.play("idle")
     _feedback("Recipe complete!", Color("#fff4ad"))
     _spark(Vector2(player_x, FLOOR_Y), Color("#ffe58b"), 24)
@@ -263,7 +294,7 @@ func _start_level(number: int) -> void:
     player_lane = 2
     player_x = LANE_X[2]
     player_target_x = player_x
-    squirrel.position.x = player_x
+    _reset_squirrel_visual()
     squirrel.play("idle")
     paused = false
     screen = "play"
@@ -319,6 +350,19 @@ func _unhandled_input(event: InputEvent) -> void:
 func _set_lane(next_lane: int) -> void:
     player_lane = clampi(next_lane, 0, 4)
     player_target_x = LANE_X[player_lane]
+
+func _reset_squirrel_visual() -> void:
+    idle_time = 0.0
+    squirrel.position = Vector2(player_x, SQUIRREL_Y)
+    squirrel.scale = Vector2.ONE * SQUIRREL_BASE_SCALE
+    squirrel.rotation = 0.0
+
+func _apply_idle_visual(delta: float) -> void:
+    idle_time += delta
+    var breath := 1.0 + sin(idle_time * IDLE_BREATH_SPEED) * IDLE_BREATH_SCALE
+    squirrel.scale = Vector2.ONE * SQUIRREL_BASE_SCALE * breath
+    squirrel.position = Vector2(player_x, SQUIRREL_Y + sin(idle_time * IDLE_SWAY_SPEED) * IDLE_BOB_PIXELS)
+    squirrel.rotation = sin(idle_time * IDLE_SWAY_SPEED) * IDLE_SWAY_RADIANS
 
 func _retry_level() -> void:
     _start_level(level_number)

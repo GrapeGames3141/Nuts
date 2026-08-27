@@ -32,11 +32,18 @@ func _init() -> void:
         var d := LevelData.make(level, 1234)
         expect(d.recipe.size() == expected, "level %d recipe" % level)
         expect(LevelData.validate(d), "level %d definition" % level)
+        var scheduled_arrivals: Array = []
+        var no_same_lane_conflicts := true
         for event in d.events:
             if event.kind == "acorn":
                 expect(event.speed > 0.0, "positive acorn speed")
+                var arrival := LevelData.acorn_arrival_time(event.time, event.speed)
+                no_same_lane_conflicts = no_same_lane_conflicts and not LevelData.has_acorn_arrival_conflict(
+                    scheduled_arrivals, event.lane, arrival, LevelData.acorn_arrival_safety_window(level))
+                scheduled_arrivals.append({"lane": event.lane, "arrival": arrival})
             if event.kind == "limb":
                 expect(event.warning >= 1.1, "fair limb warning")
+        expect(no_same_lane_conflicts, "speed-aware same-lane arrivals are separated")
         var seeds_ok := true
         for seed in range(1,101):
             seeds_ok = seeds_ok and GameLogic.simulate_level(level, seed)
