@@ -13,6 +13,15 @@ func _init() -> void:
     assert(scene.squirrel.sprite_frames.has_animation("run_right"))
     assert(scene.squirrel.sprite_frames.has_animation("flatten"))
     assert(scene.squirrel.sprite_frames.has_animation("pop"))
+    scene._limb_hit({})
+    assert(scene.screen == "recover" and scene.recover_phase == 0)
+    scene.squirrel.frame = scene.squirrel.sprite_frames.get_frame_count("flatten") - 1
+    scene._update_recovery(0.0)
+    assert(scene.recover_phase == 1 and scene.squirrel.animation == "flatten")
+    scene._update_recovery(scene.FLATTEN_HOLD_SECONDS - 0.01)
+    assert(scene.recover_phase == 1 and scene.squirrel.animation == "flatten")
+    scene._update_recovery(0.02)
+    assert(scene.recover_phase == 2 and scene.squirrel.animation == "pop")
     scene.paused = true
     assert(scene.paused)
     scene._pause_click(Vector2(300, 850))

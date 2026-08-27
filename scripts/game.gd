@@ -8,6 +8,8 @@ const W := 1080.0
 const H := 1920.0
 const PLAY_RIGHT := 800.0
 const FLOOR_Y := 1510.0
+const FLATTEN_HOLD_SECONDS := 1.5
+const POP_RECOVERY_SECONDS := 0.55
 const LANE_X := [105.0, 270.0, 435.0, 600.0, 765.0]
 const ACORN_COLORS := [Color("#bb7136"), Color("#c94838"), Color("#8064a8"), Color("#e3ae35")]
 const ACORN_NAMES := ["Oak", "Redcap", "Striped", "Gold"]
@@ -133,12 +135,18 @@ func _update_play(delta: float) -> void:
 
 func _update_recovery(delta: float) -> void:
     recover_time += delta
-    if recover_phase == 0 and recover_time >= 0.42:
-        recover_phase = 1
+    if recover_phase == 0:
+        # Let the impact clip reach its fully flattened final frame first.
+        if squirrel.frame >= squirrel.sprite_frames.get_frame_count("flatten") - 1:
+            recover_phase = 1
+            recover_time = 0.0
+    elif recover_phase == 1 and recover_time >= FLATTEN_HOLD_SECONDS:
+        # The final flattened frame now remains on screen for a readable 1.5 s hold.
+        recover_phase = 2
         recover_time = 0.0
         squirrel.play("pop")
         status_text = "Shake it off!"
-    elif recover_phase == 1 and recover_time >= 0.55:
+    elif recover_phase == 2 and recover_time >= POP_RECOVERY_SECONDS:
         screen = "play"
         recover_phase = 0
         recover_time = 0.0
