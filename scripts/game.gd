@@ -56,6 +56,7 @@ var trail_background: Texture2D
 var trail_background_2: Texture2D
 var item_textures: Dictionary = {}
 var hazard_texture: Texture2D
+var branch_texture: Texture2D
 var leaf_texture: Texture2D
 var save_data := {"version": 1, "unlocked": 1, "ratings": {}, "music": true, "sfx": true, "haptics": true}
 var paused := false
@@ -82,6 +83,7 @@ func _ready() -> void:
         "pinecone": load("res://assets/art/items/pinecone_strip.png")
     }
     hazard_texture = load("res://assets/art/items/seasonal_hazards.png")
+    branch_texture = load("res://assets/art/items/branch_clean_v1.png")
     leaf_texture = load("res://assets/art/items/leaf_strip.png")
     _load_save()
     _make_squirrel()
@@ -617,8 +619,6 @@ func _draw_results() -> void:
     _draw_button(RESULTS_BUTTON_RECTS[2], "TREE TRAIL", true)
 
 func _draw_game() -> void:
-    for x in LANE_X:
-        draw_line(Vector2(x, 250), Vector2(x, FLOOR_Y+75), Color("#e2d894",0.18), 3)
     if bool(definition.get("theme", {}).get("ambient", false)):
         _draw_ambient_snow()
     _draw_goal()
@@ -727,7 +727,7 @@ func _draw_collectible(center: Vector2, rotation: float, variant: int, scale: fl
     draw_set_transform(Vector2.ZERO)
 
 func _draw_hazard(center: Vector2, rotation: float, skin: String, variant: int, scale: float) -> void:
-    var texture := leaf_texture if skin == "leaf" else hazard_texture
+    var texture := _hazard_texture_for(skin)
     if texture == null:
         _draw_acorn(center, rotation, Color("#d57136"), 0, scale)
         return
@@ -735,6 +735,8 @@ func _draw_hazard(center: Vector2, rotation: float, skin: String, variant: int, 
     if skin == "leaf":
         var leaf_width := texture.get_width() / 4
         source = Rect2((variant % 4) * leaf_width, 0, leaf_width, texture.get_height())
+    elif skin == "stick" or skin == "branch":
+        source = Rect2(0, 0, texture.get_width(), texture.get_height())
     else:
         var hazard_index := 1 if skin == "stick" or skin == "branch" else 2 if skin == "snowflake" else 3
         var cell := Vector2(texture.get_width() / 2, texture.get_height() / 2)
@@ -742,6 +744,11 @@ func _draw_hazard(center: Vector2, rotation: float, skin: String, variant: int, 
     draw_set_transform(center, rotation, Vector2.ONE * scale)
     draw_texture_rect_region(texture, Rect2(-78, -78, 156, 156), source)
     draw_set_transform(Vector2.ZERO)
+
+func _hazard_texture_for(skin: String) -> Texture2D:
+    if skin == "leaf": return leaf_texture
+    if skin == "stick" or skin == "branch": return branch_texture
+    return hazard_texture
 
 func _draw_acorn(center: Vector2, rotation: float, color: Color, variant: int, scale: float) -> void:
     draw_set_transform(center, rotation, Vector2(scale,scale))

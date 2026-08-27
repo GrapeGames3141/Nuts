@@ -11,6 +11,7 @@ func _init() -> void:
     assert(ResourceLoader.exists("res://assets/art/items/acorn_strip.png"))
     assert(ResourceLoader.exists("res://assets/art/items/pinecone_strip.png"))
     assert(ResourceLoader.exists("res://assets/art/items/seasonal_hazards.png"))
+    assert(ResourceLoader.exists("res://assets/art/items/branch_clean_v1.png"))
     scene.screen = "title"
     var title_tap := InputEventScreenTouch.new()
     title_tap.pressed = true
@@ -74,7 +75,8 @@ func _init() -> void:
     assert(scene._replacement_lane() != blocked_lane)
     scene.drops.clear()
     scene._start_level(5)
-    assert(scene.definition.theme.family == "pinecone" and scene.item_textures.pinecone != null)
+    assert(scene.definition.theme.family == "pinecone" and scene.item_textures.pinecone != null and scene.branch_texture != null)
+    assert(scene._hazard_texture_for("stick") == scene.branch_texture and scene._hazard_texture_for("branch") == scene.branch_texture)
     scene._start_level(9)
     assert(scene.definition.theme.minor == "snowflake" and scene.definition.theme.major == "icicle" and scene.hazard_texture != null)
     assert(scene._map_node_position(1).y > scene._map_node_position(10).y)

@@ -29,6 +29,11 @@ func _init() -> void:
         scene._update_map_crossing(1.0); await capture(scene, "tree2", size)
         scene.screen = "settings"; await capture(scene, "settings", size)
         scene._start_level(1); await capture(scene, "play01", size)
+        scene._start_level(5)
+        scene.drops = [{"kind":"leaf", "skin":"stick", "variant":0, "x":scene.LANE_X[2], "base_x":scene.LANE_X[2], "y":710.0,
+            "speed":0.0, "rotation":0.34, "scale":1.0, "wobble":0.0, "seed":0.0, "age":0.0}]
+        await capture(scene, "level05_stick", size)
+        scene.drops.clear()
         scene.logic.progress = 1; scene._update_carry_stack(); await capture(scene, "carry1", size)
         scene._start_level(11); await capture(scene, "play11", size)
         scene.logic.progress = 5; scene._update_carry_stack(); await capture(scene, "carry5", size)

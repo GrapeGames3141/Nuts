@@ -6,6 +6,14 @@ func expect(condition: bool, label: String) -> void:
     if condition: print("PASS ", label)
     else: failures += 1; push_error("FAIL " + label)
 func _init() -> void:
+    var level_names := {}
+    expect(LevelData.NAMES.size() == 20, "twenty level names")
+    for index in range(LevelData.NAMES.size()):
+        var level_name: String = LevelData.NAMES[index]
+        expect(not level_name.is_empty() and not level_names.has(level_name), "level name %d is unique" % (index + 1))
+        level_names[level_name] = true
+        var family: String = LevelData.THEMES[index].family
+        expect(("Acorn" in level_name) if family == "acorn" else ("Pinecone" in level_name), "level name %d matches collectible family" % (index + 1))
     var game := GameLogic.new()
     game.begin([0, 1, 0], 17)
     expect(game.recipe_states() == ["current", "waiting", "waiting"], "initial goal states")

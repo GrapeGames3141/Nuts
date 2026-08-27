@@ -9,7 +9,7 @@ const RECIPES := [
     [0,1,3,2,0], [2,0,1,3,2], [3,1,2,0,1], [1,2,3,0,2], [0,3,1,2,3],
     [2,1,0,3,1], [3,0,2,1,0], [1,3,0,2,1], [0,2,1,3,0], [2,3,1,0,2], [3,1,0,2,3]
 ]
-const NAMES := ["First Nuts", "Three's Company", "Quick Branches", "Leaf Lesson", "Cap Shuffle", "Breezy Bunch", "Busy Bough", "Timber!", "Canopy Dash", "Nuts! Master", "Crossing Call", "Cedar Steps", "Bough Bounce", "Needle Dash", "Storm Bridge", "Moon Cone", "Frosty Route", "Snow Crown", "Icy Summit", "Nuts! Legend"]
+const NAMES := ["First Acorns", "Spring Acorns", "Summer Acorns", "Leafy Acorns", "Pinecone Shuffle", "Breezy Pinecones", "Acorn Boughs", "Acorn Timber!", "Snowy Pinecones", "Night Pinecones", "Acorn Crossing", "Cedar Pinecones", "Bough Acorns", "Needle Pinecones", "Storm Acorns", "Moonlit Pinecones", "Frosty Pinecones", "Snowcap Pinecones", "Icy Pinecones", "Pinecone Crown"]
 const SPAWN_TO_CATCH_DISTANCE := 1865.0
 const EARLY_ACORN_ARRIVAL_SAFETY_SECONDS := 1.15
 const LATE_ACORN_ARRIVAL_SAFETY_SECONDS := 0.65
