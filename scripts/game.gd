@@ -10,8 +10,18 @@ const SAFE_TOP := 84.0
 const PAUSE_RECT := Rect2(953.0, SAFE_TOP, 85.0, 85.0)
 const PAUSE_MODAL_RECT := Rect2(130.0, 650.0, 670.0, 520.0)
 const PAUSE_BUTTON_RECTS := [Rect2(170.0, 815.0, 590.0, 86.0), Rect2(170.0, 920.0, 590.0, 86.0), Rect2(170.0, 1025.0, 590.0, 86.0)]
-const RESULTS_PANEL_RECT := Rect2(100.0, 400.0, 880.0, 850.0)
-const RESULTS_BUTTON_RECTS := [Rect2(230.0, 940.0, 620.0, 76.0), Rect2(230.0, 1035.0, 620.0, 76.0), Rect2(230.0, 1130.0, 620.0, 76.0)]
+const RESULTS_PANEL_RECT := Rect2(50.0, SAFE_TOP + 30.0, 980.0, 1660.0)
+const RESULTS_HEADER_RECT := Rect2(120.0, SAFE_TOP + 60.0, 840.0, 178.0)
+const RESULTS_MEDALLION_CENTER := Vector2(540.0, 710.0)
+const RESULTS_MEDALLION_RADIUS := 296.0
+const RESULTS_RIBBON_RECT := Rect2(175.0, 1040.0, 730.0, 82.0)
+const RESULTS_BUTTON_RECTS := [Rect2(210.0, 1335.0, 660.0, 92.0), Rect2(210.0, 1447.0, 660.0, 92.0), Rect2(210.0, 1559.0, 660.0, 92.0)]
+const RESULTS_SQUIRREL_POSITION := Vector2(500.0, 840.0)
+const RESULTS_SQUIRREL_SCALE := 1.25
+const RESULTS_SQUIRREL_SOURCE_BOUNDS := Rect2(130.0, 29.0, 251.0, 274.0)
+const RESULTS_CARRY_SIZE := 74.0
+const RESULTS_CARRY_BASE_OFFSET := Vector2(140.0, -25.0)
+const RESULTS_CARRY_STEP_Y := 45.0
 const MAP_BOTTOM_NODE_Y := 1600.0
 const MAP_TOP_NODE_Y := 440.0
 const MAP_NODE_STEP := (MAP_BOTTOM_NODE_Y - MAP_TOP_NODE_Y) / 9.0
@@ -196,10 +206,11 @@ func _apply_screen_squirrel() -> void:
         if squirrel.animation != "idle": squirrel.play("idle")
     elif screen == "results":
         squirrel.visible = true
-        squirrel.position = Vector2(W * 0.5, 1500.0)
-        squirrel.scale = Vector2.ONE * 0.46
+        squirrel.position = RESULTS_SQUIRREL_POSITION
+        squirrel.scale = Vector2.ONE * RESULTS_SQUIRREL_SCALE
         squirrel.rotation = 0.0
-        if squirrel.animation != "idle": squirrel.play("idle")
+        squirrel.flip_h = false
+        if squirrel.animation != "pop": squirrel.play("pop")
     else:
         squirrel.visible = screen == "play" or screen == "recover"
 
@@ -363,7 +374,7 @@ func _finish_level() -> void:
     screen = "results"
     drops.clear()
     _reset_squirrel_visual()
-    squirrel.play("idle")
+    squirrel.play("pop")
     _feedback("Recipe complete!", Color("#fff4ad"))
     _spark(Vector2(player_x, FLOOR_Y), Color("#ffe58b"), 24)
     _haptic(45)
@@ -608,15 +619,27 @@ func _draw_settings() -> void:
 
 func _draw_results() -> void:
     var stars := logic.stars()
-    _panel(RESULTS_PANEL_RECT)
-    _text("RECIPE COMPLETE!", Vector2(0, 585), 65, Color("#fff0ac"), HORIZONTAL_ALIGNMENT_CENTER, W)
-    _text("Level %d - %s" % [level_number, definition.name], Vector2(0, 665), 35, Color("#e5efd2"), HORIZONTAL_ALIGNMENT_CENTER, W)
+    _draw_wood_panel(RESULTS_PANEL_RECT, Color("#214337", 0.91))
+    _draw_nature_heading(RESULTS_HEADER_RECT, "RECIPE COMPLETE!")
+    _draw_tree_ring(RESULTS_MEDALLION_CENTER, RESULTS_MEDALLION_RADIUS)
+    for leaf_index in 6:
+        var leaf_angle := TAU * leaf_index / 6.0 + 0.24
+        var leaf_center := RESULTS_MEDALLION_CENTER + Vector2(cos(leaf_angle), sin(leaf_angle)) * (RESULTS_MEDALLION_RADIUS + 18.0)
+        _draw_leaf(leaf_center, Color("#b76b3d") if leaf_index % 2 == 0 else Color("#6e9c56"), 0.9, leaf_angle + 0.4)
+    _draw_wood_panel(RESULTS_RIBBON_RECT, Color("#8d512f", 0.97))
+    _text("LEVEL %d  •  %s" % [level_number, definition.name], Vector2(RESULTS_RIBBON_RECT.position.x, RESULTS_RIBBON_RECT.position.y + 55.0), 31, Color("#fff4cb"), HORIZONTAL_ALIGNMENT_CENTER, RESULTS_RIBBON_RECT.size.x)
     for slot in range(3):
-        _draw_collectible(Vector2(430 + slot * 110, 770), 0.0, slot, 0.58, "acorn", slot >= stars)
-    _text("%d mistake%s" % [logic.mistakes, "" if logic.mistakes == 1 else "s"], Vector2(0, 890), 32, Color("#f7dfb9"), HORIZONTAL_ALIGNMENT_CENTER, W)
-    _draw_button(RESULTS_BUTTON_RECTS[0], "NEXT LEVEL" if level_number < 20 else "ALL 20 LEVELS COMPLETE", level_number < 20)
-    _draw_button(RESULTS_BUTTON_RECTS[1], "RETRY LEVEL", true)
-    _draw_button(RESULTS_BUTTON_RECTS[2], "TREE TRAIL", true)
+        _draw_collectible(Vector2(430 + slot * 110, 1178), 0.0, slot, 0.58, "acorn", slot >= stars)
+    _text("%d mistake%s" % [logic.mistakes, "" if logic.mistakes == 1 else "s"], Vector2(0, 1280), 32, Color("#f7dfb9"), HORIZONTAL_ALIGNMENT_CENTER, W)
+    _draw_leaf_button(RESULTS_BUTTON_RECTS[0], "NEXT LEVEL" if level_number < 20 else "ALL 20 LEVELS COMPLETE", level_number < 20, Color("#ba6e3d"))
+    _draw_leaf_button(RESULTS_BUTTON_RECTS[1], "RETRY LEVEL", true, Color("#9a5637"))
+    _draw_leaf_button(RESULTS_BUTTON_RECTS[2], "TREE TRAIL", true, Color("#5f8958"))
+
+func _results_squirrel_visual_rect() -> Rect2:
+    # Union of packed pop frames 11 and 8. Keeping this explicit ties the
+    # celebration layout to the actual alpha artwork rather than its cell size.
+    var top_left := RESULTS_SQUIRREL_POSITION + (RESULTS_SQUIRREL_SOURCE_BOUNDS.position - Vector2(256.0, 256.0)) * RESULTS_SQUIRREL_SCALE
+    return Rect2(top_left, RESULTS_SQUIRREL_SOURCE_BOUNDS.size * RESULTS_SQUIRREL_SCALE)
 
 func _draw_game() -> void:
     if bool(definition.get("theme", {}).get("ambient", false)):
@@ -651,6 +674,48 @@ func _draw_button(rect: Rect2, label: String, enabled: bool) -> void:
     _panel(rect, Color("#c87538", 0.97) if enabled else Color("#596257", 0.92))
     _text(label, Vector2(rect.position.x, rect.position.y + rect.size.y * 0.67), 29, Color.WHITE, HORIZONTAL_ALIGNMENT_CENTER, rect.size.x)
 
+func _draw_wood_panel(rect: Rect2, color: Color) -> void:
+    _panel(rect, color)
+    var inset := 17.0
+    draw_line(Vector2(rect.position.x + inset, rect.position.y + inset), Vector2(rect.end.x - inset, rect.position.y + inset), Color("#f2d489", 0.34), 4.0)
+    draw_line(Vector2(rect.position.x + inset, rect.end.y - inset), Vector2(rect.end.x - inset, rect.end.y - inset), Color("#1f3028", 0.48), 5.0)
+    for ring in 3:
+        var y := rect.position.y + 30.0 + ring * 19.0
+        draw_arc(Vector2(rect.position.x + 56.0, y), 34.0, -1.35, 1.35, 14, Color("#c98a4a", 0.15), 2.0)
+        draw_arc(Vector2(rect.end.x - 56.0, y), 34.0, PI - 1.35, PI + 1.35, 14, Color("#c98a4a", 0.15), 2.0)
+
+func _draw_nature_heading(rect: Rect2, label: String) -> void:
+    _draw_wood_panel(rect, Color("#704229", 0.98))
+    _draw_leaf(rect.position + Vector2(55.0, rect.size.y * 0.5), Color("#769b53"), 0.9, -0.55)
+    _draw_leaf(rect.end - Vector2(55.0, rect.size.y * 0.5), Color("#d2893f"), 0.9, 0.55)
+    _text(label, Vector2(rect.position.x, rect.position.y + 115.0), 58, Color("#fff3b7"), HORIZONTAL_ALIGNMENT_CENTER, rect.size.x)
+
+func _draw_tree_ring(center: Vector2, radius: float) -> void:
+    draw_circle(center, radius + 18.0, Color("#523321", 0.9))
+    draw_circle(center, radius, Color("#a56438", 0.98))
+    draw_circle(center, radius - 20.0, Color("#d29a5b", 0.98))
+    for ring in [0.25, 0.46, 0.67, 0.84]:
+        draw_arc(center + Vector2(-12.0, 8.0), (radius - 30.0) * ring, -2.7, 2.5, 42, Color("#805035", 0.47), 3.0)
+    for notch in 16:
+        var angle := TAU * notch / 16.0
+        var from := center + Vector2(cos(angle), sin(angle)) * (radius - 8.0)
+        var to := center + Vector2(cos(angle), sin(angle)) * (radius + 15.0)
+        draw_line(from, to, Color("#6d4129", 0.8), 7.0)
+
+func _draw_leaf(center: Vector2, color: Color, scale: float, rotation: float) -> void:
+    var points := PackedVector2Array([Vector2(-26, 0), Vector2(-4, -19), Vector2(31, -5), Vector2(39, 7), Vector2(4, 20), Vector2(-22, 13)])
+    draw_set_transform(center, rotation, Vector2.ONE * scale)
+    draw_colored_polygon(points, color)
+    draw_line(Vector2(-21, 7), Vector2(28, -2), Color("#f7d99a", 0.45), 2.0)
+    draw_set_transform(Vector2.ZERO)
+
+func _draw_leaf_button(rect: Rect2, label: String, enabled: bool, color: Color) -> void:
+    var button_color := color if enabled else Color("#596257", 0.94)
+    _draw_wood_panel(rect, button_color)
+    _draw_leaf(rect.position + Vector2(31.0, rect.size.y * 0.5), Color("#d8ae55"), 0.55, -0.55)
+    _draw_leaf(rect.end - Vector2(31.0, rect.size.y * 0.5), Color("#e1bd63"), 0.55, 0.55)
+    _text(label, Vector2(rect.position.x, rect.position.y + rect.size.y * 0.66), 29, Color.WHITE if enabled else Color("#d3d8ce"), HORIZONTAL_ALIGNMENT_CENTER, rect.size.x)
+
 func _draw_goal() -> void:
     _panel(Rect2(824, 235, 228, 790), Color("#244239",0.93))
     _text("GOAL", Vector2(850, 292), 36, Color("#fff0aa"))
@@ -672,20 +737,30 @@ func _update_carry_stack() -> void:
         return
     for i in carry_sprites.size():
         var carried := carry_sprites[i]
-        carried.visible = i < logic.progress and i < logic.recipe.size() and screen == "play"
+        var show_play_stack := i < logic.progress and i < logic.recipe.size() and screen == "play"
+        var show_results_stack := i < logic.recipe.size() and screen == "results"
+        carried.visible = show_play_stack or show_results_stack
         if not carried.visible:
             continue
         var wobble := sin(elapsed * 5.0 + i * 1.7) * 0.11
-        # Attach to the raised paw-side, not the face.  On lane 4 the stack
-        # mirrors inward, preserving the goal rail and the squirrel's eye.
-        var side := -1.0 if player_lane == 4 else 1.0
-        var offset := Vector2(side * (76.0 + (i % 2) * 11.0), -56.0 - i * 42.0)
-        carried.position = Vector2(player_x, SQUIRREL_Y) + offset
-        carried.rotation = wobble * side
-        # Source strips are deliberately high resolution: render carried nuts at
-        # a readable 74 reference pixels, not at the source-cell's native size.
+        if screen == "results":
+            # The completed recipe rests on the celebratory raised paw. It remains
+            # in front of the pop sprite, with a small alternating lean instead of
+            # cutting through the face or the carved heading.
+            var result_offset := RESULTS_CARRY_BASE_OFFSET + Vector2((i % 2) * 10.0 - 4.0, -i * RESULTS_CARRY_STEP_Y)
+            carried.position = RESULTS_SQUIRREL_POSITION + result_offset
+            carried.rotation = wobble + (-0.08 if i % 2 == 0 else 0.08)
+        else:
+            # Attach to the raised paw-side, not the face. On lane 4 the stack
+            # mirrors inward, preserving the goal rail and the squirrel's eye.
+            var side := -1.0 if player_lane == 4 else 1.0
+            var offset := Vector2(side * (76.0 + (i % 2) * 11.0), -56.0 - i * 42.0)
+            carried.position = Vector2(player_x, SQUIRREL_Y) + offset
+            carried.rotation = wobble * side
+        # Source strips are deliberately high resolution: render the result stack
+        # at 74 px and the in-play stack at its established 74 reference pixels.
         var source_cell_width := float(texture.get_width()) / 4.0
-        carried.scale = Vector2.ONE * (74.0 / source_cell_width)
+        carried.scale = Vector2.ONE * ((RESULTS_CARRY_SIZE if screen == "results" else 74.0) / source_cell_width)
         var atlas := AtlasTexture.new()
         atlas.atlas = texture
         var cell_width := texture.get_width() / 4

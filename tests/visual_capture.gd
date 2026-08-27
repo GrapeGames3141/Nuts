@@ -39,7 +39,9 @@ func _init() -> void:
         scene.logic.progress = 5; scene._update_carry_stack(); await capture(scene, "carry5", size)
         scene._start_level(20); await capture(scene, "play20", size)
         scene.paused = true; await capture(scene, "pause", size)
-        scene.paused = false; scene.logic.progress = scene.logic.recipe.size(); scene._finish_level(); await capture(scene, "results", size)
+        scene.paused = false
+        scene._start_level(4); scene.logic.progress = scene.logic.recipe.size(); scene._finish_level(); await capture(scene, "results_acorn", size)
+        scene._start_level(19); scene.logic.progress = scene.logic.recipe.size(); scene._finish_level(); await capture(scene, "results_winter_pinecone", size)
         scene._start_level(8); scene._limb_hit({}); scene.squirrel.frame = 1; scene._update_recovery(0.0); await capture(scene, "recovery", size)
     print("VISUAL_CAPTURE_PASS user://qa")
     quit()
