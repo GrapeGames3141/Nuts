@@ -104,6 +104,25 @@ func _init() -> void:
             assert(event.skin != "branch")
             if event.skin == "needle": scheduled_needles += 1
     assert(scheduled_needles > 0)
+    # Exhaust an authored hazard level without catching. The actual play loop
+    # must queue complete deterministic cycles rather than target-only drops.
+    scene._start_level(8)
+    var authored_event_count: int = scene.events.size()
+    var authored_end_time := float(scene.events.back().time)
+    scene.elapsed = authored_end_time
+    scene.event_cursor = authored_event_count
+    scene._update_play(0.0)
+    assert(scene.schedule_cycle == 1 and scene.events.size() == authored_event_count * 2)
+    var continuation_has_leaf := false
+    var continuation_has_limb := false
+    for event in scene.scheduled_tail:
+        continuation_has_leaf = continuation_has_leaf or event.kind == "leaf"
+        continuation_has_limb = continuation_has_limb or event.kind == "limb"
+    assert(continuation_has_leaf and continuation_has_limb)
+    scene.elapsed = LevelData.cycle_duration(scene.definition) + authored_end_time
+    scene._update_play(0.0)
+    assert(scene.schedule_cycle >= 2 and scene.scheduled_tail.size() == authored_event_count)
+
     scene._start_level(9)
     assert(scene.definition.theme.minor == "snowflake" and scene.definition.theme.major == "icicle" and scene.hazard_texture != null)
     var warning_limb := {"kind":"limb", "phase":"warning", "base_x":scene.LANE_X[2], "x":scene.LANE_X[2], "y":-120.0,

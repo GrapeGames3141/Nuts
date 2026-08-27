@@ -13,6 +13,8 @@ const NAMES := ["First Acorns", "Spring Acorns", "Summer Acorns", "Leafy Acorns"
 const SPAWN_TO_CATCH_DISTANCE := 1865.0
 const EARLY_ACORN_ARRIVAL_SAFETY_SECONDS := 1.15
 const LATE_ACORN_ARRIVAL_SAFETY_SECONDS := 0.65
+const CONTINUATION_SEED_STRIDE := 104729
+const CONTINUATION_SEED_RETRY_STRIDE := 1009
 const THEMES := [
     {"id":"spring", "background":"spring_oak", "family":"acorn", "minor":"", "major":"", "ambient":false},
     {"id":"spring", "background":"spring_oak", "family":"acorn", "minor":"", "major":"", "ambient":false},
@@ -98,6 +100,39 @@ static func make(level_number: int, seed: int = 1) -> Dictionary:
 static func rating(mistakes: int) -> int:
     return 3 if mistakes == 0 else 2 if mistakes == 1 else 1
 
+static func cycle_duration(definition: Dictionary) -> float:
+    # The offset lets the next cycle's first target follow the prior cycle's
+    # last target at the same authored step, without a quiet boundary or burst.
+    var level_index := int(definition.number) - 1
+    var step := maxf(2.35, 3.6 - level_index * 0.08)
+    var recipe: Array = definition.recipe
+    return step * float(recipe.size())
+
+static func make_continuation(definition: Dictionary, seed: int, cycle_index: int, previous_cycle: Array = []) -> Array:
+    # A continuation is a fresh authored pass, not a target-only replacement.
+    # Candidate seeds vary lanes, speeds and skins while preserving the same
+    # target cadence and complete level-specific mix of decoys and hazards.
+    var offset := cycle_duration(definition) * float(cycle_index)
+    for retry in range(96):
+        var cycle_seed := seed + cycle_index * CONTINUATION_SEED_STRIDE + retry * CONTINUATION_SEED_RETRY_STRIDE
+        var source := make(int(definition.number), cycle_seed)
+        var shifted: Array = []
+        for source_event in source.events:
+            var event: Dictionary = source_event.duplicate(true)
+            event.time = float(event.time) + offset
+            shifted.append(event)
+        if _events_are_safe(int(definition.number), previous_cycle + shifted):
+            return shifted
+    # Every candidate is independently safe. This fallback keeps the stream
+    # moving should exceptionally dense future content exhaust the retries.
+    var fallback_source := make(int(definition.number), seed + cycle_index * CONTINUATION_SEED_STRIDE)
+    var fallback: Array = []
+    for source_event in fallback_source.events:
+        var event: Dictionary = source_event.duplicate(true)
+        event.time = float(event.time) + offset
+        fallback.append(event)
+    return fallback
+
 static func acorn_arrival_safety_window(level_number: int) -> float:
     return EARLY_ACORN_ARRIVAL_SAFETY_SECONDS if level_number <= 5 else LATE_ACORN_ARRIVAL_SAFETY_SECONDS
 
@@ -148,11 +183,14 @@ static func has_acorn_arrival_conflict(scheduled_acorns: Array, lane: int, arriv
 static func validate(definition: Dictionary) -> bool:
     var recipe: Array = definition.recipe
     if recipe.size() < 3 or recipe.size() > 5: return false
+    return _events_are_safe(int(definition.number), definition.events)
+
+static func _events_are_safe(level_number: int, events_to_validate: Array) -> bool:
     var acorns: Array = []
     var targets: Array = []
     var limbs: Array = []
-    var arrival_window := acorn_arrival_safety_window(int(definition.number))
-    for event in definition.events:
+    var arrival_window := acorn_arrival_safety_window(level_number)
+    for event in events_to_validate:
         var skin := str(event.get("skin", ""))
         # Branches are exclusively full-reset limbs. Minor debris must never
         # silently inherit the branch art or warning-free limb behavior.

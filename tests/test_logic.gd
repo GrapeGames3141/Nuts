@@ -89,5 +89,59 @@ func _init() -> void:
         expect(seeded_skins_ok, "100 seeded schedules keep branches limb-only")
         if level == 4 or level == 7 or level == 8: expect(leaf_variants.size() == 4, "all four generated leaf variants appear across seeds")
     expect(LevelData.make(-5, 4).number == 1 and LevelData.make(99, 4).number == 20, "level requests clamp to the 20-level route")
+    # Dodge through three complete authored schedules. The stream must retain
+    # its cadence, complete mix, deterministic variation and target recurrence.
+    for level in range(1, 21):
+        var stream_definition := LevelData.make(level, 2468)
+        var base_cycle: Array = stream_definition.events.duplicate(true)
+        var continuation_one := LevelData.make_continuation(stream_definition, 2468, 1, base_cycle)
+        var continuation_one_repeat := LevelData.make_continuation(stream_definition, 2468, 1, base_cycle)
+        var continuation_two := LevelData.make_continuation(stream_definition, 2468, 2, continuation_one)
+        var continuation_three := LevelData.make_continuation(stream_definition, 2468, 3, continuation_two)
+        expect(continuation_one == continuation_one_repeat, "level %d continuation is deterministic" % level)
+        expect(continuation_one.size() == base_cycle.size() and continuation_two.size() == base_cycle.size(), "level %d continuation retains event rate" % level)
+        expect(is_equal_approx(float(continuation_one[0].time - base_cycle[0].time), LevelData.cycle_duration(stream_definition)), "level %d continuation has no boundary pause" % level)
+        var full_stream: Array = base_cycle + continuation_one + continuation_two + continuation_three
+        var stream_definition_with_continuations := {"number": level, "recipe": stream_definition.recipe, "events": full_stream}
+        expect(LevelData.validate(stream_definition_with_continuations), "level %d cross-cycle arrival and limb safety" % level)
+        var base_mix := {"acorn": 0, "leaf": 0, "limb": 0}
+        var continuation_mix := {"acorn": 0, "leaf": 0, "limb": 0}
+        var recurring_targets := {}
+        var last_base_target_time := -1.0
+        var first_continuation_target_time := -1.0
+        for event in base_cycle:
+            base_mix[event.kind] = int(base_mix.get(event.kind, 0)) + 1
+            if event.kind == "acorn" and event.target:
+                last_base_target_time = float(event.time)
+        for event in continuation_one:
+            continuation_mix[event.kind] = int(continuation_mix.get(event.kind, 0)) + 1
+            if event.kind == "acorn" and event.target:
+                recurring_targets[event.variant] = true
+                if first_continuation_target_time < 0.0:
+                    first_continuation_target_time = float(event.time)
+        expect(base_mix == continuation_mix, "level %d continuation keeps authored composition" % level)
+        expect(is_equal_approx(first_continuation_target_time - last_base_target_time, LevelData.cycle_duration(stream_definition) / stream_definition.recipe.size()), "level %d target cadence stays continuous across boundary" % level)
+        var all_recipe_variants_recur := true
+        for recipe_variant in stream_definition.recipe:
+            all_recipe_variants_recur = all_recipe_variants_recur and recurring_targets.has(recipe_variant)
+        expect(all_recipe_variants_recur, "level %d every needed variant recurs within one cycle" % level)
+        if bool(stream_definition.leaves):
+            expect(int(continuation_mix.leaf) > 0, "level %d minor hazards continue" % level)
+        if bool(stream_definition.limbs):
+            expect(int(continuation_mix.limb) > 0, "level %d major hazards continue" % level)
+
+    var continuation_seed_safety := true
+    for continuation_seed in range(1, 26):
+        for continuation_level in range(1, 21):
+            var continuation_definition := LevelData.make(continuation_level, continuation_seed)
+            var first_cycle: Array = continuation_definition.events.duplicate(true)
+            var second_cycle: Array = LevelData.make_continuation(continuation_definition, continuation_seed, 1, first_cycle)
+            var third_cycle: Array = LevelData.make_continuation(continuation_definition, continuation_seed, 2, second_cycle)
+            continuation_seed_safety = continuation_seed_safety and LevelData.validate({
+                "number": continuation_level, "recipe": continuation_definition.recipe,
+                "events": first_cycle + second_cycle + third_cycle
+            })
+    expect(continuation_seed_safety, "25 deterministic seeds keep all cross-cycle schedules fair")
+
     print("TEST_FAILURES=", failures)
     quit(1 if failures > 0 else 0)

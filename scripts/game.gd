@@ -92,6 +92,9 @@ var drops: Array = []
 var particles: Array = []
 var elapsed := 0.0
 var event_cursor := 0
+var schedule_seed := 0
+var schedule_cycle := 0
+var scheduled_tail: Array = []
 var player_lane := 2
 var player_x := LANE_X[2]
 var player_target_x := player_x
@@ -297,9 +300,13 @@ func _apply_screen_squirrel() -> void:
 
 func _update_play(delta: float) -> void:
     elapsed += delta
+    if event_cursor >= events.size():
+        _queue_continuation_cycle()
     while event_cursor < events.size() and float(events[event_cursor].time) <= elapsed:
         _spawn_event(events[event_cursor])
         event_cursor += 1
+    if event_cursor >= events.size():
+        _queue_continuation_cycle()
     player_x = move_toward(player_x, player_target_x, delta * 1320.0)
     if absf(player_x - player_target_x) > 12.0:
         _reset_squirrel_visual()
@@ -339,8 +346,7 @@ func _update_recovery(delta: float) -> void:
         screen = "play"
         recover_phase = 0
         recover_time = 0.0
-        elapsed = 0.0
-        event_cursor = 0
+        _reset_schedule()
         drops.clear()
         logic.reset_after_limb()
         _reset_squirrel_visual()
@@ -389,15 +395,28 @@ func _spawn_event(event: Dictionary) -> void:
     drops.append(drop)
 
 func _ensure_next_target() -> void:
+    # Every authored cycle contains the complete recipe mix. Missing anything
+    # is harmless because the current target recurs in the next cycle; never
+    # replace the stream with target-only drops after a long dodge.
     if logic.progress >= logic.recipe.size(): return
-    var wanted := logic.current_variant()
-    for drop in drops:
-        if drop.kind == "acorn" and drop.variant == wanted and drop.y < FLOOR_Y + 60.0:
-            return
-    # A missed required acorn is harmless: produce an unambiguous replacement.
-    if event_cursor >= events.size() and elapsed > 0.75:
-        _spawn_event({"kind": "acorn", "family": definition.theme.family, "variant": wanted, "lane": _replacement_lane(), "speed": definition.base_speed, "warning": 0.0})
-        elapsed = -2.5
+
+func _reset_schedule() -> void:
+    events = definition.events.duplicate(true)
+    elapsed = 0.0
+    event_cursor = 0
+    schedule_cycle = 0
+    scheduled_tail = definition.events.duplicate(true)
+
+func _queue_continuation_cycle() -> void:
+    schedule_cycle += 1
+    var continuation := LevelData.make_continuation(definition, schedule_seed, schedule_cycle, scheduled_tail)
+    events.append_array(continuation)
+    scheduled_tail = continuation.duplicate(true)
+    # Events before the cursor have already spawned. Keep only future events
+    # so an extended dodge cannot grow stale timeline data without bound.
+    if event_cursor > 48:
+        events = events.slice(event_cursor)
+        event_cursor = 0
 
 func _replacement_lane() -> int:
     # Prefer a lane whose speed-aware arrival time does not coincide with an active acorn.
@@ -478,11 +497,10 @@ func _start_level(number: int) -> void:
     definition = LevelData.make(level_number, 7000 + level_number * 31)
     background = _background_for(str(definition.theme.background))
     logic.begin(definition.recipe, 7000 + level_number * 31)
-    events = definition.events
+    schedule_seed = 7000 + level_number * 31
     drops.clear()
     particles.clear()
-    elapsed = 0.0
-    event_cursor = 0
+    _reset_schedule()
     player_lane = 2
     player_x = LANE_X[2]
     player_target_x = player_x
