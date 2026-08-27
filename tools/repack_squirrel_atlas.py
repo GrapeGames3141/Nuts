@@ -4,9 +4,14 @@ from pathlib import Path
 
 src = Path(__file__).parents[1] / "assets/art/squirrel_sheet_clean.png"
 dst = Path(__file__).parents[1] / "assets/art/squirrel_sheet_packed.png"
+repairs = {
+    8: Path(__file__).parents[1] / "assets/art/squirrel_idle_head_repair_v1.png",
+    11: Path(__file__).parents[1] / "assets/art/squirrel_pop_head_repair_v1.png",
+}
 im = Image.open(src).convert("RGBA")
 cell_w, cell_h, out = im.width // 4, im.height // 3, 512
 packed = Image.new("RGBA", (out * 4, out * 3), (0, 0, 0, 0))
+TOP_EDGE_RECOVERY = {8: 303, 11: 272}  # packed local bottom (exclusive)
 
 def clean_components(pose: Image.Image) -> Image.Image:
     """Keep exactly the dominant 8-connected pose component.
@@ -46,8 +51,12 @@ def clean_components(pose: Image.Image) -> Image.Image:
 
 for index in range(12):
     x, y = (index % 4) * cell_w, (index // 4) * cell_h
-    # Omit edge bleed from adjacent generated cells, retain the pose at native size.
-    pose = im.crop((x + 10, y + 10, x + cell_w - 10, y + cell_h - 10))
+    if index in repairs:
+        # Versioned transparent overrides preserve every original cell pixel and
+        # add only the locally reconstructed upper ear/head contour.
+        pose = Image.open(repairs[index]).convert("RGBA")
+    else:
+        pose = im.crop((x + 10, y + 10, x + cell_w - 10, y + cell_h - 10))
     pose = clean_components(pose)
     alpha = pose.getchannel("A")
     bbox = alpha.getbbox()
@@ -56,7 +65,12 @@ for index in range(12):
         if pose.width > out - 96 or pose.height > out - 96:
             pose.thumbnail((out - 96, out - 96), Image.Resampling.LANCZOS)
         px = (index % 4) * out + (out - pose.width) // 2
-        py = (index // 4) * out + 56
+        if index in TOP_EDGE_RECOVERY:
+            # Keep repaired art at native scale; anchor feet/bottom exactly and
+            # spend only the unused top-cell headroom on the restored contour.
+            py = (index // 4) * out + TOP_EDGE_RECOVERY[index] - pose.height
+        else:
+            py = (index // 4) * out + 56
         packed.alpha_composite(pose, (px, py))
 packed.save(dst)
 print(dst)
