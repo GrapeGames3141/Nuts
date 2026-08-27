@@ -3,6 +3,7 @@
 *.import
 *.tmp
 *.apk
-build/
+build/*
+!build/.gdignore
 android/build/
 *.log

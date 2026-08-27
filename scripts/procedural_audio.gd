@@ -29,10 +29,15 @@ func cue(kind: String) -> AudioStreamWAV:
 
 func _stream(samples: PackedFloat32Array, looped: bool) -> AudioStreamWAV:
 	var bytes := PackedByteArray()
-	bytes.resize(samples.size() * 2)
+	# Godot 4.7.1's WAV forward-loop mixer can read the exclusive loop_end
+	# frame inclusively. Keep one source-frame guard for looped PCM only.
+	var has_loop_guard := looped and not samples.is_empty()
+	bytes.resize(samples.size() * 2 + (2 if has_loop_guard else 0))
 	for i in samples.size():
 		var value := int(clampf(samples[i], -1.0, 1.0) * 32767.0)
 		bytes.encode_s16(i * 2, value)
+	if has_loop_guard:
+		bytes.encode_s16(samples.size() * 2, bytes.decode_s16(0))
 	var stream := AudioStreamWAV.new()
 	stream.format = AudioStreamWAV.FORMAT_16_BITS
 	stream.mix_rate = RATE
