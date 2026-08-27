@@ -43,6 +43,7 @@ func _init() -> void:
         scene.paused = true; await capture(scene, "pause", size)
         scene.paused = false
         scene._start_level(4); scene.logic.progress = scene.logic.recipe.size(); scene._finish_level(); await capture(scene, "results_acorn", size)
+        await capture(scene, "results_ring_focus", size)
         scene._start_level(19); scene.logic.progress = scene.logic.recipe.size(); scene._finish_level(); await capture(scene, "results_winter_pinecone", size)
         scene._start_level(8)
         # Keep the full-strength warning safely below its phase threshold during

@@ -834,21 +834,19 @@ func _draw_nature_heading(rect: Rect2, label: String) -> void:
     _text(label, Vector2(rect.position.x, rect.position.y + 115.0), 58, Color("#fff3b7"), HORIZONTAL_ALIGNMENT_CENTER, rect.size.x)
 
 func _draw_tree_ring(center: Vector2, radius: float) -> void:
-    draw_circle(center, radius + 18.0, Color("#523321", 0.78))
-    draw_circle(center, radius, Color("#a56438", 0.72))
-    # Keep the square bark tile wholly inside the circular face; it cannot leak
-    # into the bark rim or leave square corners around the medallion.
-    var tile_half := radius * 0.58
-    if bark_texture != null:
-        draw_texture_rect(bark_texture, Rect2(center - Vector2.ONE * tile_half, Vector2.ONE * tile_half * 2.0), true, Color(1.0, 0.78, 0.55, 0.72))
-    draw_circle(center, radius - 20.0, Color("#d29a5b", 0.68))
+    draw_circle(center, radius + 18.0, Color("#523321", 0.98))
+    draw_circle(center, radius + 11.0, Color("#73472c", 0.98))
+    draw_circle(center, radius + 4.0, Color("#9a6037", 0.98))
+    draw_circle(center, radius - 4.0, Color("#bd7c47", 0.98))
+    draw_circle(center, radius - 20.0, Color("#d7a66a", 0.98))
+    draw_circle(center + Vector2(-7.0, 6.0), radius * 0.32, Color("#e4bd81", 0.28))
     for ring in [0.25, 0.46, 0.67, 0.84]:
-        draw_arc(center + Vector2(-12.0, 8.0), (radius - 30.0) * ring, -2.7, 2.5, 42, Color("#805035", 0.47), 3.0)
+        draw_arc(center + Vector2(-12.0, 8.0), (radius - 30.0) * ring, -2.7, 2.5, 42, Color("#805035", 0.58), 3.0)
     for notch in 16:
         var angle := TAU * notch / 16.0
         var from := center + Vector2(cos(angle), sin(angle)) * (radius - 8.0)
         var to := center + Vector2(cos(angle), sin(angle)) * (radius + 15.0)
-        draw_line(from, to, Color("#6d4129", 0.8), 7.0)
+        draw_line(from, to, Color("#6d4129", 0.88), 7.0)
 
 func _draw_leaf(center: Vector2, color: Color, scale: float, rotation: float) -> void:
     var points := PackedVector2Array([Vector2(-26, 0), Vector2(-4, -19), Vector2(31, -5), Vector2(39, 7), Vector2(4, 20), Vector2(-22, 13)])
