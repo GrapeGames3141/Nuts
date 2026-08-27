@@ -33,7 +33,7 @@ const SQUIRREL_BASE_SCALE := 0.64
 const SQUIRREL_FOOT_SOURCE_OFFSET := 68.17308
 const SQUIRREL_FOOT_OFFSET := SQUIRREL_FOOT_SOURCE_OFFSET * SQUIRREL_BASE_SCALE
 const SQUIRREL_Y := GROUND_LINE_Y - SQUIRREL_FOOT_OFFSET
-const TITLE_CARD_RECT := Rect2(90.0, 190.0, 900.0, 680.0)
+const TITLE_CARD_RECT := Rect2(90.0, 190.0, 900.0, 590.0)
 const TITLE_SQUIRREL_SCALE := 0.70
 const TITLE_SQUIRREL_SOURCE_SIZE := Vector2(1172.0, 1342.0)
 const TITLE_SQUIRREL_SOURCE_BOUNDS := Rect2(82.0, 52.0, 901.0, 1181.0)
@@ -48,6 +48,12 @@ const FLATTEN_HOLD_SECONDS := 1.5
 const POP_RECOVERY_SECONDS := 0.55
 const ICICLE_BASE_ROTATION := 0.0
 const ICICLE_WOBBLE_RADIANS := 0.055
+const BRANCH_BASE_ROTATION := 0.0
+const BRANCH_WOBBLE_RADIANS := 0.07
+const BRANCH_LATERAL_SWAY_PIXELS := 5.0
+const WARNING_SHADOW_Y_OFFSET := 22.0
+const WARNING_LABEL_Y_OFFSET := 338.0
+const WARNING_LABEL_SIZE := Vector2(224.0, 66.0)
 const LANE_X := [105.0, 270.0, 435.0, 600.0, 765.0]
 const ACORN_COLORS := [Color("#bb7136"), Color("#c94838"), Color("#8064a8"), Color("#e3ae35")]
 const ACORN_NAMES := ["Oak", "Redcap", "Striped", "Gold"]
@@ -78,6 +84,7 @@ var item_textures: Dictionary = {}
 var hazard_texture: Texture2D
 var branch_texture: Texture2D
 var leaf_texture: Texture2D
+var needle_texture: Texture2D
 var title_squirrel_texture: Texture2D
 var bark_texture: Texture2D
 var moss_texture: Texture2D
@@ -109,6 +116,7 @@ func _ready() -> void:
     hazard_texture = load("res://assets/art/items/seasonal_hazards.png")
     branch_texture = load("res://assets/art/items/branch_clean_v1.png")
     leaf_texture = load("res://assets/art/items/leaf_strip.png")
+    needle_texture = load("res://assets/art/items/pine_needle_cluster_v1.png")
     title_squirrel_texture = load("res://assets/art/squirrel_front_acorn_v1.png")
     bark_texture = load("res://assets/art/ui_textures/oak_bark_tile_v1.png")
     moss_texture = load("res://assets/art/ui_textures/moss_panel_tile_v1.png")
@@ -307,8 +315,10 @@ func _move_drop(drop: Dictionary, delta: float) -> void:
             # point-down. Keep its fall vertical with only a small returning sway.
             drop.rotation = ICICLE_BASE_ROTATION + sin(drop.age * 2.8 + drop.seed) * ICICLE_WOBBLE_RADIANS
         else:
-            drop.rotation += delta * (0.85 + drop.wobble)
-        drop.x = drop.base_x + sin(drop.age * 3.7 + drop.seed) * 18.0
+            # The branch asset is horizontal at zero rotation. A heavy limb only
+            # rocks a little while falling; it never tumbles end-over-end.
+            drop.rotation = BRANCH_BASE_ROTATION + sin(drop.age * 2.15 + drop.seed) * BRANCH_WOBBLE_RADIANS
+        drop.x = drop.base_x + sin(drop.age * 2.4 + drop.seed) * (BRANCH_LATERAL_SWAY_PIXELS if str(drop.skin) == "branch" else 18.0)
     elif drop.kind == "leaf":
         drop.y += drop.speed * delta
         drop.rotation += delta * (2.4 + drop.wobble)
@@ -594,15 +604,35 @@ func _panel(rect: Rect2, color := Color("#253d32", 0.9)) -> void:
     _draw_textured_panel(rect, color)
 
 func _draw_textured_panel(rect: Rect2, color: Color, radius := 28) -> void:
-    if bark_texture != null:
-        draw_texture_rect(bark_texture, rect, true, Color(1.0, 0.82, 0.63, 0.72))
-    else:
-        draw_rect(rect, Color("#75472d"))
-    var inset := rect.grow(-12.0)
+    # Lay down a clean rounded carved frame first. Raster texture is deliberately
+    # inset so its square source corners never touch the gold outer border.
+    var frame := _round_box(Color("#5b3b29", 0.98), radius)
+    frame.border_color = Color("#f4d98a", 0.62)
+    frame.border_width_left = 4; frame.border_width_right = 4
+    frame.border_width_top = 4; frame.border_width_bottom = 4
+    draw_style_box(frame, rect)
+    var inset := rect.grow(-17.0)
     if moss_texture != null and inset.size.x > 0.0 and inset.size.y > 0.0:
-        draw_texture_rect(moss_texture, inset, true, Color(0.66, 0.88, 0.62, 0.27))
-    draw_rect(rect, Color(color.r, color.g, color.b, color.a * 0.48))
-    draw_style_box(_round_box(Color(0.0, 0.0, 0.0, 0.0), radius), rect)
+        if bark_texture != null:
+            draw_texture_rect(bark_texture, inset, true, Color(1.0, 0.82, 0.63, 0.62))
+        draw_texture_rect(moss_texture, inset, true, Color(0.66, 0.88, 0.62, 0.34))
+        _mask_panel_texture_corners(inset, maxf(7.0, float(radius) - 11.0), Color("#5b3b29", 0.98))
+    var inner := _round_box(Color(color.r, color.g, color.b, color.a * 0.54), maxi(7, radius - 11))
+    inner.border_color = Color("#f4d98a", 0.18)
+    inner.border_width_left = 1; inner.border_width_right = 1
+    inner.border_width_top = 1; inner.border_width_bottom = 1
+    draw_style_box(inner, inset)
+
+func _mask_panel_texture_corners(rect: Rect2, corner_radius: float, color: Color) -> void:
+    var centers := [rect.position + Vector2(corner_radius, corner_radius), Vector2(rect.end.x - corner_radius, rect.position.y + corner_radius), Vector2(rect.end.x - corner_radius, rect.end.y - corner_radius), Vector2(rect.position.x + corner_radius, rect.end.y - corner_radius)]
+    var starts := [PI, -PI * 0.5, 0.0, PI * 0.5]
+    for corner in 4:
+        var pivot: Vector2 = rect.position if corner == 0 else Vector2(rect.end.x, rect.position.y) if corner == 1 else rect.end if corner == 2 else Vector2(rect.position.x, rect.end.y)
+        var points := PackedVector2Array([pivot])
+        for step in 9:
+            var angle: float = float(starts[corner]) + step * PI * 0.5 / 8.0
+            points.append(centers[corner] + Vector2(cos(angle), sin(angle)) * corner_radius)
+        draw_colored_polygon(points, color)
 
 func _round_box(color: Color, radius: int) -> StyleBoxFlat:
     var box := StyleBoxFlat.new()
@@ -618,14 +648,13 @@ func _draw_title() -> void:
     _text("Nuts!", Vector2(0, 410), 164, Color("#fff1ad"), HORIZONTAL_ALIGNMENT_CENTER, W)
     _text("Catch the acorns in recipe order", Vector2(0, 500), 39, Color("#fff9dd"), HORIZONTAL_ALIGNMENT_CENTER, W)
     _text("Drag the squirrel through five lanes", Vector2(0, 558), 30, Color("#d8ecc8"), HORIZONTAL_ALIGNMENT_CENTER, W)
-    _draw_leaf_button(Rect2(265, 635, 550, 112), TITLE_CTA, true, Color("#b76a39"))
-    _text("A woodland pocket game", Vector2(0, 820), 25, Color("#e3efcf"), HORIZONTAL_ALIGNMENT_CENTER, W)
+    _draw_leaf_button(Rect2(265, 610, 550, 112), TITLE_CTA, true, Color("#b76a39"))
 
 func _draw_map() -> void:
     _draw_wood_panel(Rect2(55, SAFE_TOP, 970, 130), Color("#234238", 0.9))
     _text("TREE %d TRAIL" % map_page, Vector2(95, SAFE_TOP + 123), 62, Color("#fff0ac"))
     _text("ROOTS TO CROWN", Vector2(615, SAFE_TOP + 100), 26, Color("#d7e9cc"))
-    _panel(Rect2(880, 92, 105, 90), Color("#6f8c70"))
+    _draw_textured_medallion(Vector2(932, 137), 42.0, true, false)
     _draw_settings_gear(Vector2(932, 137), 27.0)
     var first := 1 if map_page == 1 else 11
     for n in range(first, first + 9):
@@ -696,7 +725,7 @@ func _draw_game() -> void:
     _draw_goal()
     _draw_wood_panel(Rect2(38, SAFE_TOP, 505, 94), Color("#244338",0.88))
     _text("LEVEL %d  %s" % [level_number, definition.name], Vector2(65, SAFE_TOP + 62), 31, Color("#fff0b0"))
-    _panel(PAUSE_RECT, Color("#6e875e"))
+    _draw_textured_medallion(PAUSE_RECT.get_center(), 40.0, true, false)
     _text("II", Vector2(972, SAFE_TOP + 58), 30)
     for drop in drops:
         _draw_drop(drop)
@@ -740,11 +769,13 @@ func _draw_nature_heading(rect: Rect2, label: String) -> void:
     _text(label, Vector2(rect.position.x, rect.position.y + 115.0), 58, Color("#fff3b7"), HORIZONTAL_ALIGNMENT_CENTER, rect.size.x)
 
 func _draw_tree_ring(center: Vector2, radius: float) -> void:
-    var texture_rect := Rect2(center - Vector2.ONE * radius, Vector2.ONE * radius * 2.0)
-    if bark_texture != null:
-        draw_texture_rect(bark_texture, texture_rect, false, Color(1.0, 0.78, 0.55, 0.72))
     draw_circle(center, radius + 18.0, Color("#523321", 0.78))
     draw_circle(center, radius, Color("#a56438", 0.72))
+    # Keep the square bark tile wholly inside the circular face; it cannot leak
+    # into the bark rim or leave square corners around the medallion.
+    var tile_half := radius * 0.58
+    if bark_texture != null:
+        draw_texture_rect(bark_texture, Rect2(center - Vector2.ONE * tile_half, Vector2.ONE * tile_half * 2.0), true, Color(1.0, 0.78, 0.55, 0.72))
     draw_circle(center, radius - 20.0, Color("#d29a5b", 0.68))
     for ring in [0.25, 0.46, 0.67, 0.84]:
         draw_arc(center + Vector2(-12.0, 8.0), (radius - 30.0) * ring, -2.7, 2.5, 42, Color("#805035", 0.47), 3.0)
@@ -782,7 +813,6 @@ func _draw_goal() -> void:
         if state == "current": draw_circle(Vector2(938,y), 56 + sin(elapsed*5.0)*5.0, Color("#fff2a8",0.24))
         _draw_collectible(Vector2(938,y), 0.0, logic.recipe[i], 0.72, str(definition.get("theme", {}).get("family", "acorn")), state == "held")
         _text(str(i+1), Vector2(850,y+12), 25, Color.WHITE)
-    _text("FIRST", Vector2(850, 973), 20, Color("#bed7bc"))
 
 func _update_carry_stack() -> void:
     var family := str(definition.get("theme", {}).get("family", "acorn"))
@@ -829,29 +859,51 @@ func _draw_settings_gear(center: Vector2, radius: float) -> void:
         var angle := TAU * tooth / 8.0
         var from := center + Vector2(cos(angle), sin(angle)) * (radius - 2.0)
         var to := center + Vector2(cos(angle), sin(angle)) * (radius + 8.0)
-        draw_line(from, to, Color("#fff0b4"), 7.0)
-    draw_circle(center, radius, Color("#fff0b4"))
-    draw_circle(center, radius * 0.42, Color("#52705e"))
+        draw_line(from, to, Color("#d79b56"), 7.0)
+    draw_circle(center, radius, Color("#6f472d", 0.95))
+    draw_circle(center, radius * 0.72, Color("#d79b56", 0.92))
+    draw_circle(center, radius * 0.42, Color("#3f6946"))
+    _draw_leaf(center + Vector2(-radius * 0.56, -radius * 0.34), Color("#7d9e54"), 0.35, -0.55)
 
 func _draw_textured_medallion(center: Vector2, radius: float, unlocked: bool, completed: bool) -> void:
-    var rect := Rect2(center - Vector2.ONE * radius, Vector2.ONE * radius * 2.0)
-    if bark_texture != null:
-        draw_texture_rect(bark_texture, rect, false, Color(0.85, 0.68, 0.46, 0.76) if unlocked else Color(0.38, 0.43, 0.40, 0.76))
     draw_circle(center, radius, Color("#8d5a33", 0.78) if unlocked else Color("#45514b", 0.92))
+    # The tiled bark sits within the inscribed face, avoiding square texture
+    # corners outside the carved circular rim.
+    var tile_half := radius * 0.58
+    if bark_texture != null:
+        draw_texture_rect(bark_texture, Rect2(center - Vector2.ONE * tile_half, Vector2.ONE * tile_half * 2.0), true, Color(0.85, 0.68, 0.46, 0.76) if unlocked else Color(0.38, 0.43, 0.40, 0.76))
     draw_circle(center, radius - 15.0, Color("#d9a15c", 0.62) if completed else Color("#b57842", 0.58) if unlocked else Color("#69746c", 0.72))
 
 func _draw_drop(drop: Dictionary) -> void:
     if drop.kind == "limb":
         if not _limb_is_visible(drop):
-            var shadow_w: float = 82.0 + 90.0 * drop.width * drop.shadow
-            _draw_shadow_ellipse(Vector2(drop.base_x, FLOOR_Y+55), Vector2(shadow_w, 16 + 20*drop.shadow), Color("#202016",0.13 + 0.26*drop.shadow))
-            _text("RUSTLE!", Vector2(drop.base_x-72, FLOOR_Y-155), 24, Color("#ffe998"))
+            # Telegraph only: a heavy ground shadow and readable plaque, never a
+            # limb sprite, collision shape, circular arc, or ring.
+            var strength := clampf(float(drop.get("shadow", 0.0)), 0.0, 1.0)
+            var shadow_center := _limb_warning_shadow_center(drop)
+            var shadow_w: float = 152.0 + 132.0 * float(drop.width) * strength
+            _draw_shadow_ellipse(shadow_center, Vector2(shadow_w, 24.0 + 26.0 * strength), Color("#17140e", 0.26 + 0.42 * strength))
+            _draw_shadow_ellipse(shadow_center + Vector2(0.0, 3.0), Vector2(shadow_w * 0.64, 11.0 + 12.0 * strength), Color("#080806", 0.20 + 0.28 * strength))
+            var label_rect := _limb_warning_label_rect(drop)
+            var plaque := _round_box(Color("#4f2f22", 0.96), 16)
+            plaque.border_color = Color("#f6d978", 0.92)
+            plaque.border_width_left = 3; plaque.border_width_right = 3
+            plaque.border_width_top = 3; plaque.border_width_bottom = 3
+            draw_style_box(plaque, label_rect)
+            _text("RUSTLE!", Vector2(label_rect.position.x, label_rect.position.y + 46.0), 31, Color("#fff2a6"), HORIZONTAL_ALIGNMENT_CENTER, label_rect.size.x)
         else:
             _draw_hazard(Vector2(drop.x, drop.y), drop.rotation, str(drop.skin), drop.variant, 1.35 * drop.width)
     elif drop.kind == "leaf":
         _draw_hazard(Vector2(drop.x, drop.y), drop.rotation, str(drop.skin), drop.variant, drop.scale)
     else:
         _draw_collectible(Vector2(drop.x, drop.y + drop.bob), drop.rotation, drop.variant, 1.0, str(drop.family), false)
+
+func _limb_warning_shadow_center(drop: Dictionary) -> Vector2:
+    return Vector2(clampf(float(drop.base_x), 92.0, PLAY_RIGHT - 92.0), GROUND_LINE_Y - WARNING_SHADOW_Y_OFFSET)
+
+func _limb_warning_label_rect(drop: Dictionary) -> Rect2:
+    var x := clampf(float(drop.base_x) - WARNING_LABEL_SIZE.x * 0.5, 24.0, PLAY_RIGHT - WARNING_LABEL_SIZE.x - 18.0)
+    return Rect2(x, GROUND_LINE_Y - WARNING_LABEL_Y_OFFSET, WARNING_LABEL_SIZE.x, WARNING_LABEL_SIZE.y)
 
 func _draw_collectible(center: Vector2, rotation: float, variant: int, scale: float, family: String, dimmed: bool) -> void:
     var texture: Texture2D = item_textures.get(family)
@@ -873,10 +925,10 @@ func _draw_hazard(center: Vector2, rotation: float, skin: String, variant: int, 
     if skin == "leaf":
         var leaf_width := texture.get_width() / 4
         source = Rect2((variant % 4) * leaf_width, 0, leaf_width, texture.get_height())
-    elif skin == "stick" or skin == "branch":
+    elif skin == "needle" or skin == "branch":
         source = Rect2(0, 0, texture.get_width(), texture.get_height())
     else:
-        var hazard_index := 1 if skin == "stick" or skin == "branch" else 2 if skin == "snowflake" else 3
+        var hazard_index := 2 if skin == "snowflake" else 3
         var cell := Vector2(texture.get_width() / 2, texture.get_height() / 2)
         source = Rect2((hazard_index % 2) * cell.x, (hazard_index / 2) * cell.y, cell.x, cell.y)
     draw_set_transform(center, rotation, Vector2.ONE * scale)
@@ -885,7 +937,8 @@ func _draw_hazard(center: Vector2, rotation: float, skin: String, variant: int, 
 
 func _hazard_texture_for(skin: String) -> Texture2D:
     if skin == "leaf": return leaf_texture
-    if skin == "stick" or skin == "branch": return branch_texture
+    if skin == "needle": return needle_texture
+    if skin == "branch": return branch_texture
     return hazard_texture
 
 func _draw_acorn(center: Vector2, rotation: float, color: Color, variant: int, scale: float) -> void:

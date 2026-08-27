@@ -44,7 +44,7 @@ func _init() -> void:
         if level <= 2: expect(d.theme.id == "spring" and d.theme.minor == "", "spring levels have no seasonal hazard")
         if level == 3: expect(d.theme.id == "summer" and d.theme.family == "acorn", "summer oak theme")
         if level == 4 or level == 7: expect(d.theme.minor == "leaf", "autumn leaf theme")
-        if level >= 5 and level <= 6: expect(d.theme.family == "pinecone" and d.theme.minor == "stick", "pine stick theme")
+        if level == 5 or level == 6 or level == 12 or level == 14: expect(d.theme.family == "pinecone" and d.theme.minor == "needle", "pine needle theme")
         if level == 8: expect(d.theme.major == "branch", "storm branch reset theme")
         if level >= 9 and level <= 10: expect(d.theme.family == "pinecone" and d.theme.minor == "snowflake" and d.theme.major == "icicle", "winter snow and icicle theme")
         if level >= 11: expect(d.recipe.size() == 5 and d.name != "", "extended route stays at five items")
@@ -56,6 +56,8 @@ func _init() -> void:
         var scheduled_arrivals: Array = []
         var no_same_lane_conflicts := true
         for event in d.events:
+            expect(str(event.get("skin", "")) != "stick", "no stick skins")
+            if event.kind != "limb": expect(str(event.get("skin", "")) != "branch", "branch is limb only")
             if event.kind == "acorn":
                 expect(event.speed > 0.0, "positive acorn speed")
                 var arrival := LevelData.acorn_arrival_time(event.time, event.speed)
@@ -63,6 +65,7 @@ func _init() -> void:
                     scheduled_arrivals, event.lane, arrival, LevelData.acorn_arrival_safety_window(level))
                 scheduled_arrivals.append({"lane": event.lane, "arrival": arrival})
             if event.kind == "limb":
+                expect(event.skin == "branch" or event.skin == "icicle", "limb uses major skin")
                 expect(event.warning >= 1.1, "fair limb warning")
                 for target_event in d.events:
                     if target_event.kind == "acorn" and target_event.target:
@@ -72,13 +75,18 @@ func _init() -> void:
                             "limb does not cover a required catch arrival")
         expect(no_same_lane_conflicts, "speed-aware same-lane arrivals are separated")
         var seeds_ok := true
+        var seeded_skins_ok := true
         var leaf_variants := {}
         for seed in range(1,101):
             var seeded := LevelData.make(level, seed)
             seeds_ok = seeds_ok and GameLogic.simulate_level(level, seed)
             for event in seeded.events:
+                seeded_skins_ok = seeded_skins_ok and str(event.get("skin", "")) != "stick"
+                if event.kind != "limb":
+                    seeded_skins_ok = seeded_skins_ok and str(event.get("skin", "")) != "branch"
                 if event.get("skin", "") == "leaf": leaf_variants[event.variant] = true
         expect(seeds_ok, "100 deterministic seeds are solvable")
+        expect(seeded_skins_ok, "100 seeded schedules keep branches limb-only")
         if level == 4 or level == 7 or level == 8: expect(leaf_variants.size() == 4, "all four generated leaf variants appear across seeds")
     expect(LevelData.make(-5, 4).number == 1 and LevelData.make(99, 4).number == 20, "level requests clamp to the 20-level route")
     print("TEST_FAILURES=", failures)

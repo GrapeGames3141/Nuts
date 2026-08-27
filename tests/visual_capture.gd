@@ -29,10 +29,10 @@ func _init() -> void:
         scene._update_map_crossing(1.0); await capture(scene, "tree2", size)
         scene.screen = "settings"; await capture(scene, "settings", size)
         scene._start_level(1); await capture(scene, "play01", size)
-        scene._start_level(5)
-        scene.drops = [{"kind":"leaf", "skin":"stick", "variant":0, "x":scene.LANE_X[2], "base_x":scene.LANE_X[2], "y":710.0,
+        scene._start_level(6)
+        scene.drops = [{"kind":"leaf", "skin":"needle", "variant":0, "x":scene.LANE_X[2], "base_x":scene.LANE_X[2], "y":710.0,
             "speed":0.0, "rotation":0.34, "scale":1.0, "wobble":0.0, "seed":0.0, "age":0.0}]
-        await capture(scene, "level05_stick", size)
+        await capture(scene, "level06_needles", size)
         scene.drops.clear()
         scene.logic.progress = 1; scene._update_carry_stack(); await capture(scene, "carry1", size)
         scene._start_level(11); await capture(scene, "play11", size)
@@ -43,8 +43,10 @@ func _init() -> void:
         scene._start_level(4); scene.logic.progress = scene.logic.recipe.size(); scene._finish_level(); await capture(scene, "results_acorn", size)
         scene._start_level(19); scene.logic.progress = scene.logic.recipe.size(); scene._finish_level(); await capture(scene, "results_winter_pinecone", size)
         scene._start_level(8)
-        scene.drops = [{"kind":"limb", "phase":"warning", "base_x":scene.LANE_X[2], "x":scene.LANE_X[2], "y":-120.0,
-            "warning":1.35, "age":0.5, "shadow":0.38, "width":1, "speed":500.0, "rotation":0.0, "wobble":0.0, "seed":0.0, "skin":"branch", "variant":-1}]
+        # Keep the full-strength warning safely below its phase threshold during
+        # the two awaited frames, and place it away from the player for QA.
+        scene.drops = [{"kind":"limb", "phase":"warning", "base_x":scene.LANE_X[0], "x":scene.LANE_X[0], "y":-120.0,
+            "warning":1.35, "age":1.0, "shadow":1.0, "width":1, "speed":500.0, "rotation":0.0, "wobble":0.0, "seed":0.0, "skin":"branch", "variant":-1}]
         await capture(scene, "limb_warning", size)
         scene.drops[0].phase = "falling"; scene.drops[0].y = 320.0; await capture(scene, "limb_active", size)
         scene._start_level(9)

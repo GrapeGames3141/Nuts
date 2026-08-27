@@ -18,16 +18,16 @@ const THEMES := [
     {"id":"spring", "background":"spring_oak", "family":"acorn", "minor":"", "major":"", "ambient":false},
     {"id":"summer", "background":"summer_oak", "family":"acorn", "minor":"", "major":"", "ambient":false},
     {"id":"autumn", "background":"autumn_oak", "family":"acorn", "minor":"leaf", "major":"", "ambient":false},
-    {"id":"pine", "background":"pine_grove", "family":"pinecone", "minor":"stick", "major":"", "ambient":false},
-    {"id":"pine", "background":"pine_grove", "family":"pinecone", "minor":"stick", "major":"", "ambient":false},
+    {"id":"pine", "background":"pine_grove", "family":"pinecone", "minor":"needle", "major":"", "ambient":false},
+    {"id":"pine", "background":"pine_grove", "family":"pinecone", "minor":"needle", "major":"", "ambient":false},
     {"id":"autumn", "background":"autumn_oak", "family":"acorn", "minor":"leaf", "major":"", "ambient":false},
     {"id":"storm", "background":"autumn_oak", "family":"acorn", "minor":"leaf", "major":"branch", "ambient":false},
     {"id":"winter", "background":"winter_pine", "family":"pinecone", "minor":"snowflake", "major":"icicle", "ambient":true},
     {"id":"winter_night", "background":"winter_pine", "family":"pinecone", "minor":"snowflake", "major":"icicle", "ambient":true},
     {"id":"autumn", "background":"autumn_oak", "family":"acorn", "minor":"leaf", "major":"branch", "ambient":false},
-    {"id":"pine", "background":"pine_grove", "family":"pinecone", "minor":"stick", "major":"branch", "ambient":false},
+    {"id":"pine", "background":"pine_grove", "family":"pinecone", "minor":"needle", "major":"branch", "ambient":false},
     {"id":"autumn", "background":"autumn_oak", "family":"acorn", "minor":"leaf", "major":"branch", "ambient":false},
-    {"id":"pine", "background":"pine_grove", "family":"pinecone", "minor":"stick", "major":"branch", "ambient":false},
+    {"id":"pine", "background":"pine_grove", "family":"pinecone", "minor":"needle", "major":"branch", "ambient":false},
     {"id":"storm", "background":"autumn_oak", "family":"acorn", "minor":"leaf", "major":"branch", "ambient":false},
     {"id":"winter_night", "background":"winter_pine", "family":"pinecone", "minor":"snowflake", "major":"icicle", "ambient":true},
     {"id":"winter", "background":"winter_pine", "family":"pinecone", "minor":"snowflake", "major":"icicle", "ambient":true},
@@ -153,6 +153,12 @@ static func validate(definition: Dictionary) -> bool:
     var limbs: Array = []
     var arrival_window := acorn_arrival_safety_window(int(definition.number))
     for event in definition.events:
+        var skin := str(event.get("skin", ""))
+        # Branches are exclusively full-reset limbs. Minor debris must never
+        # silently inherit the branch art or warning-free limb behavior.
+        if skin == "stick": return false
+        if event.kind != "limb" and skin == "branch": return false
+        if event.kind == "limb" and skin != "branch" and skin != "icicle": return false
         if event.kind == "limb" and event.warning < 1.1: return false
         if event.kind == "limb": limbs.append(event)
         if event.kind == "acorn":

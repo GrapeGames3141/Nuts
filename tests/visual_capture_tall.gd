@@ -33,6 +33,11 @@ func _init() -> void:
     scene.map_page = 2; await _capture(scene, "tree2")
     scene.screen = "settings"; await _capture(scene, "settings")
     scene._start_level(1); await _capture(scene, "play01")
+    scene._start_level(6)
+    scene.drops = [{"kind":"leaf", "skin":"needle", "variant":0, "x":scene.LANE_X[2], "base_x":scene.LANE_X[2], "y":710.0,
+        "speed":0.0, "rotation":0.34, "scale":1.0, "wobble":0.0, "seed":0.0, "age":0.0}]
+    await _capture(scene, "level06_needles")
+    scene.drops.clear()
     scene.paused = true; await _capture(scene, "pause")
     scene.paused = false
     scene._start_level(4)
@@ -44,8 +49,8 @@ func _init() -> void:
     scene._finish_level()
     await _capture(scene, "results_winter_pinecone")
     scene._start_level(8)
-    scene.drops = [{"kind":"limb", "phase":"warning", "base_x":scene.LANE_X[2], "x":scene.LANE_X[2], "y":-120.0,
-        "warning":1.35, "age":0.5, "shadow":0.38, "width":1, "speed":500.0, "rotation":0.0, "wobble":0.0, "seed":0.0, "skin":"branch", "variant":-1}]
+    scene.drops = [{"kind":"limb", "phase":"warning", "base_x":scene.LANE_X[0], "x":scene.LANE_X[0], "y":-120.0,
+        "warning":1.35, "age":1.0, "shadow":1.0, "width":1, "speed":500.0, "rotation":0.0, "wobble":0.0, "seed":0.0, "skin":"branch", "variant":-1}]
     await _capture(scene, "limb_warning")
     scene.drops[0].phase = "falling"; scene.drops[0].y = 320.0; await _capture(scene, "limb_active")
     scene._start_level(9)

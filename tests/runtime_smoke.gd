@@ -12,6 +12,7 @@ func _init() -> void:
     assert(ResourceLoader.exists("res://assets/art/items/pinecone_strip.png"))
     assert(ResourceLoader.exists("res://assets/art/items/seasonal_hazards.png"))
     assert(ResourceLoader.exists("res://assets/art/items/branch_clean_v1.png"))
+    assert(ResourceLoader.exists("res://assets/art/items/pine_needle_cluster_v1.png"))
     assert(ResourceLoader.exists("res://assets/art/squirrel_front_acorn_v1.png"))
     assert(ResourceLoader.exists("res://assets/art/ui_textures/oak_bark_tile_v1.png"))
     assert(ResourceLoader.exists("res://assets/art/ui_textures/moss_panel_tile_v1.png"))
@@ -90,17 +91,35 @@ func _init() -> void:
     assert(scene._replacement_lane() != blocked_lane)
     scene.drops.clear()
     scene._start_level(5)
-    assert(scene.definition.theme.family == "pinecone" and scene.item_textures.pinecone != null and scene.branch_texture != null)
-    assert(scene._hazard_texture_for("stick") == scene.branch_texture and scene._hazard_texture_for("branch") == scene.branch_texture)
+    assert(scene.definition.theme.family == "pinecone" and scene.definition.theme.minor == "needle" and scene.item_textures.pinecone != null)
+    assert(scene.needle_texture != null and scene._hazard_texture_for("needle") == scene.needle_texture and scene._hazard_texture_for("branch") == scene.branch_texture)
+    scene._start_level(6)
+    var scheduled_needles := 0
+    for event in scene.events:
+        assert(str(event.get("skin", "")) != "stick")
+        if event.kind == "leaf":
+            assert(event.skin != "branch")
+            if event.skin == "needle": scheduled_needles += 1
+    assert(scheduled_needles > 0)
     scene._start_level(9)
     assert(scene.definition.theme.minor == "snowflake" and scene.definition.theme.major == "icicle" and scene.hazard_texture != null)
     var warning_limb := {"kind":"limb", "phase":"warning", "base_x":scene.LANE_X[2], "x":scene.LANE_X[2], "y":-120.0,
         "warning":0.2, "age":0.0, "shadow":0.0, "width":1, "speed":500.0, "rotation":0.0, "wobble":0.0, "seed":0.0, "skin":"icicle"}
     assert(not scene._limb_is_visible(warning_limb) and not scene._limb_hits_player(warning_limb))
+    var warning_label: Rect2 = scene._limb_warning_label_rect(warning_limb)
+    var warning_shadow: Vector2 = scene._limb_warning_shadow_center(warning_limb)
+    assert(warning_label.size.x >= 200.0 and warning_label.position.y < scene.GROUND_LINE_Y - 250.0)
+    assert(warning_shadow.y < scene.GROUND_LINE_Y and absf(warning_shadow.x - scene.LANE_X[2]) < 1.0)
     scene._move_drop(warning_limb, 0.21)
     assert(scene._limb_is_visible(warning_limb) and warning_limb.y == -120.0 and not scene._limb_hits_player(warning_limb))
     scene._move_drop(warning_limb, 0.3)
     assert(absf(float(warning_limb.rotation) - scene.ICICLE_BASE_ROTATION) <= scene.ICICLE_WOBBLE_RADIANS + 0.001)
+    var branch_limb := {"kind":"limb", "phase":"falling", "base_x":scene.LANE_X[2], "x":scene.LANE_X[2], "y":-120.0,
+        "warning":1.35, "age":0.0, "shadow":1.0, "width":1, "speed":500.0, "rotation":0.0, "wobble":0.0, "seed":0.0, "skin":"branch"}
+    for step in 8:
+        scene._move_drop(branch_limb, 0.18)
+        assert(absf(float(branch_limb.rotation) - scene.BRANCH_BASE_ROTATION) <= scene.BRANCH_WOBBLE_RADIANS + 0.001)
+        assert(absf(float(branch_limb.x) - float(branch_limb.base_x)) <= scene.BRANCH_LATERAL_SWAY_PIXELS + 0.01)
     assert(scene._map_node_position(1).y > scene._map_node_position(10).y)
     assert(scene._map_node_position(1).x != scene._map_node_position(2).x)
     assert(scene._map_node_position(10).y >= 420.0)
