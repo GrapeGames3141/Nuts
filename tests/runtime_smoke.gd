@@ -5,13 +5,29 @@ func _init() -> void:
     root.add_child(scene)
     await process_frame
     assert(ResourceLoader.exists("res://assets/art/game_icon.png"))
+    assert(ResourceLoader.exists("res://assets/art/nuts_boot_splash.png"))
     assert(ResourceLoader.exists("res://assets/art/seasonal/tree_trail_2.png"))
     assert(ResourceLoader.exists("res://assets/art/squirrel_sheet_packed.png"))
     assert(ResourceLoader.exists("res://assets/art/items/acorn_strip.png"))
     assert(ResourceLoader.exists("res://assets/art/items/pinecone_strip.png"))
     assert(ResourceLoader.exists("res://assets/art/items/seasonal_hazards.png"))
-    scene._start_level(1)
+    scene.screen = "title"
+    var title_tap := InputEventScreenTouch.new()
+    title_tap.pressed = true
+    title_tap.position = Vector2(540.0, 960.0)
+    scene._unhandled_input(title_tap)
+    assert(scene.screen == "map")
+    var level_one_click := InputEventMouseButton.new()
+    level_one_click.button_index = MOUSE_BUTTON_LEFT
+    level_one_click.pressed = true
+    level_one_click.position = scene._map_node_position(1)
+    scene._unhandled_input(level_one_click)
+    assert(scene.screen == "play" and scene.level_number == 1)
     assert(scene.screen == "play")
+    assert(ProjectSettings.get_setting("application/boot_splash/image") == "res://assets/art/nuts_boot_splash.png")
+    assert(ProjectSettings.get_setting("application/boot_splash/show_image") == true)
+    assert(ProjectSettings.get_setting("application/boot_splash/stretch_mode") == 1)
+    assert(scene.TITLE_CTA == "TAP TO PLAY" and scene.TITLE_CTA != "TAP TO CLIMB")
     assert(scene.SQUIRREL_BASE_SCALE > 0.44)
     assert(is_equal_approx(scene.squirrel.position.y, scene.SQUIRREL_Y))
     assert(is_equal_approx(scene.GROUND_LINE_Y - scene.squirrel.position.y, scene.SQUIRREL_FOOT_OFFSET))
@@ -32,6 +48,26 @@ func _init() -> void:
     assert(scene.player_lane == 4 and scene.squirrel.animation == "run_right")
     assert(is_equal_approx(scene.squirrel.scale.x, scene.SQUIRREL_BASE_SCALE))
     assert(is_equal_approx(scene.squirrel.position.y, scene.SQUIRREL_Y) and is_zero_approx(scene.squirrel.rotation))
+    scene._start_level(1)
+    var mouse_press := InputEventMouseButton.new()
+    mouse_press.button_index = MOUSE_BUTTON_LEFT
+    mouse_press.pressed = true
+    mouse_press.position = Vector2(scene.LANE_X[0], 1200.0)
+    scene._unhandled_input(mouse_press)
+    assert(scene.player_lane == 0)
+    var mouse_motion := InputEventMouseMotion.new()
+    mouse_motion.position = Vector2(scene.LANE_X[4], 1200.0)
+    scene._unhandled_input(mouse_motion)
+    assert(scene.player_lane == 4 and scene.player_target_x == scene.LANE_X[4])
+    var mouse_release := InputEventMouseButton.new()
+    mouse_release.button_index = MOUSE_BUTTON_LEFT
+    mouse_release.pressed = false
+    mouse_release.position = Vector2(scene.LANE_X[4], 1200.0)
+    scene._unhandled_input(mouse_release)
+    var screen_drag := InputEventScreenDrag.new()
+    screen_drag.position = Vector2(scene.LANE_X[1], 1200.0)
+    scene._unhandled_input(screen_drag)
+    assert(scene.player_lane == 1 and scene.player_target_x == scene.LANE_X[1])
     scene._start_level(1)
     var blocked_lane: int = (scene.player_lane + 2) % 5
     scene.drops = [{"kind": "acorn", "lane": blocked_lane, "y": -120.0, "speed": scene.definition.base_speed}]

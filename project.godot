@@ -7,6 +7,14 @@ run/main_scene="res://scenes/main.tscn"
 config/features=PackedStringArray("4.7")
 config/icon="res://assets/art/game_icon.png"
 
+[application/boot_splash]
+show_image=true
+image="res://assets/art/nuts_boot_splash.png"
+stretch_mode=1
+use_filter=true
+bg_color=Color(0.13, 0.22, 0.16, 1)
+minimum_display_time=1300
+
 [display/window]
 size/viewport_width=1080
 size/viewport_height=1920

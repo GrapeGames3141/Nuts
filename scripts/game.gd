@@ -33,6 +33,7 @@ const LANE_X := [105.0, 270.0, 435.0, 600.0, 765.0]
 const ACORN_COLORS := [Color("#bb7136"), Color("#c94838"), Color("#8064a8"), Color("#e3ae35")]
 const ACORN_NAMES := ["Oak", "Redcap", "Striped", "Gold"]
 const PINECONE_NAMES := ["Ponderosa", "Sugar Pine", "Spruce", "Fir"]
+const TITLE_CTA := "TAP TO PLAY"
 
 var screen := "title"
 var level_number := 1
@@ -69,6 +70,7 @@ var audio_bank: NutsProceduralAudio
 var idle_time := 0.0
 var crossing_time := 0.0
 var crossing_target_page := 1
+var mouse_left_down := false
 
 func _ready() -> void:
     rng.seed = 84519
@@ -409,10 +411,13 @@ func _unhandled_input(event: InputEvent) -> void:
     if event.is_action_pressed("move_left") and screen == "play": _set_lane(player_lane - 1)
     if event.is_action_pressed("move_right") and screen == "play": _set_lane(player_lane + 1)
     if event.is_action_pressed("pause") and screen == "play": paused = not paused
+    if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT:
+        mouse_left_down = event.pressed
     var press: bool = event is InputEventScreenTouch and event.pressed
     var drag: bool = event is InputEventScreenDrag
     var mouse: bool = event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT
-    if press or drag or mouse:
+    var mouse_drag: bool = event is InputEventMouseMotion and mouse_left_down
+    if press or drag or mouse or mouse_drag:
         var point: Vector2 = event.position
         if screen == "map" and crossing_time > 0.0:
             return
@@ -555,7 +560,7 @@ func _draw_title() -> void:
     _text("Catch the acorns in recipe order", Vector2(0, 705), 42, Color("#fff9dd"), HORIZONTAL_ALIGNMENT_CENTER, W)
     _text("Drag the squirrel through five lanes", Vector2(0, 765), 32, Color("#cfe4bd"), HORIZONTAL_ALIGNMENT_CENTER, W)
     _panel(Rect2(265, 900, 550, 130), Color("#c87538", 0.96))
-    _text("TAP TO CLIMB", Vector2(0, 985), 46, Color.WHITE, HORIZONTAL_ALIGNMENT_CENTER, W)
+    _text(TITLE_CTA, Vector2(0, 985), 46, Color.WHITE, HORIZONTAL_ALIGNMENT_CENTER, W)
     _text("A woodland pocket game", Vector2(0, 1100), 25, Color("#d5e6ca"), HORIZONTAL_ALIGNMENT_CENTER, W)
 
 func _draw_map() -> void:
