@@ -41,7 +41,7 @@ for frame in range(12):
     cell = atlas.crop(((frame % 4) * 512, (frame // 4) * 512, (frame % 4 + 1) * 512, (frame // 4 + 1) * 512))
     _, bounds = dominant_component(cell)
     packed_bounds[frame] = bounds
-    min_padding = 24 if frame in repairs else 48
+    min_padding = 4 if frame in repairs else 48
     assert bounds[0] >= 48 and bounds[2] <= 464 and bounds[1] >= min_padding and bounds[3] <= 464, f"frame {frame} lacks safe padding"
 
 # Frame 8's actual source silhouette touches the cell top. Its previous packed
@@ -52,9 +52,9 @@ source_pose = source.crop((x + 10, y, x + source_cell_w - 10, y + source_cell_h 
 _, source_bounds = dominant_component(source_pose, require_single=False)
 frame8 = packed_bounds[source_frame]
 assert source_bounds[1] == 0, "frame 8 source no longer proves top-edge head recovery"
-assert frame8[1] >= 24 and frame8[1] == 29, f"frame 8 top padding regressed: {frame8}"
+assert frame8[1] >= 4 and frame8[1] == 6, f"frame 8 pointed-ear padding regressed: {frame8}"
 assert frame8[3] == 303, f"frame 8 foot anchor moved: {frame8}"
-assert frame8[3] - frame8[1] == 274 and frame8[3] - frame8[1] > 247, f"frame 8 did not recover head height: {frame8}"
+assert frame8[3] - frame8[1] == 297 and frame8[3] - frame8[1] > 247, f"frame 8 did not recover full ear height: {frame8}"
 
 for frame, repair_path in repairs.items():
     repair = Image.open(repair_path).convert("RGBA")
@@ -65,10 +65,10 @@ for frame, repair_path in repairs.items():
     assert repair_bounds[1] > 0, f"frame {frame} repair touches its canvas top"
     assert repair_bounds[3] - repair_bounds[1] > original_bounds[3] - original_bounds[1], f"frame {frame} repair lacks reconstructed head extent"
     top_alpha = [x for x in range(repair.width) if repair.getpixel((x, repair_bounds[1]))[3] > 8]
-    assert len(top_alpha) < 32, f"frame {frame} repair retains a flat cropped top edge"
+    assert len(top_alpha) <= 4, f"frame {frame} repair retains a long flat cropped top edge"
     packed = packed_bounds[frame]
     assert packed[2] - packed[0] == repair_bounds[2] - repair_bounds[0], f"frame {frame} repair width was resized: {packed} != {repair_bounds}"
     assert packed[3] - packed[1] == repair_bounds[3] - repair_bounds[1], f"frame {frame} repair height was resized: {packed} != {repair_bounds}"
 
-assert packed_bounds[11][1] >= 24 and packed_bounds[11][1] == 31 and packed_bounds[11][3] == 272, f"frame 11 head/feet regressed: {packed_bounds[11]}"
+assert packed_bounds[11][1] >= 4 and packed_bounds[11][1] == 12 and packed_bounds[11][3] == 272, f"frame 11 head/feet regressed: {packed_bounds[11]}"
 print("SPRITE_ATLAS_HEAD_RECOVERY_PASS", packed_bounds[8], packed_bounds[11])

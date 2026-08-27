@@ -33,6 +33,8 @@ func _init() -> void:
         scene.drops = [{"kind":"leaf", "skin":"needle", "variant":0, "x":scene.LANE_X[2], "base_x":scene.LANE_X[2], "y":710.0,
             "speed":0.0, "rotation":0.34, "scale":1.0, "wobble":0.0, "seed":0.0, "age":0.0}]
         await capture(scene, "level06_needles", size)
+        scene.drops = [{"kind":"leaf", "skin":"leaf", "variant":3, "x":scene.LANE_X[2], "base_x":scene.LANE_X[2], "y":710.0, "speed":0.0, "rotation":0.18, "scale":1.0, "wobble":0.0, "seed":0.0, "age":0.0}]
+        await capture(scene, "leaf_yellow_clean", size)
         scene.drops.clear()
         scene.logic.progress = 1; scene._update_carry_stack(); await capture(scene, "carry1", size)
         scene._start_level(11); await capture(scene, "play11", size)

@@ -25,6 +25,7 @@ const RESULTS_CARRY_STEP_Y := 45.0
 const MAP_PAGE_LEVELS := 10
 const MAP_PAGE_COUNT := 2
 const MAP_NODE_RADIUS := 59.0
+const MAP_LABEL_GAP := 16.0
 const MAP_LABEL_SIZE := Vector2(188.0, 36.0)
 const MAP_PREVIOUS_RECT := Rect2(62.0, 228.0, 246.0, 68.0)
 const MAP_NEXT_RECT := Rect2(772.0, 228.0, 246.0, 68.0)
@@ -105,9 +106,11 @@ var item_textures: Dictionary = {}
 var hazard_texture: Texture2D
 var branch_texture: Texture2D
 var leaf_texture: Texture2D
+var yellow_leaf_texture: Texture2D
 var needle_texture: Texture2D
 var title_squirrel_texture: Texture2D
 var bark_texture: Texture2D
+var pause_log_texture: Texture2D
 var moss_texture: Texture2D
 var leaf_button_texture: Texture2D
 var save_data := {"version": 1, "unlocked": 1, "ratings": {}, "music": true, "sfx": true, "haptics": true}
@@ -138,9 +141,11 @@ func _ready() -> void:
     hazard_texture = load("res://assets/art/items/seasonal_hazards.png")
     branch_texture = load("res://assets/art/items/branch_clean_v1.png")
     leaf_texture = load("res://assets/art/items/leaf_strip.png")
+    yellow_leaf_texture = load("res://assets/art/items/leaf_yellow_clean_v1.png")
     needle_texture = load("res://assets/art/items/pine_needle_cluster_v1.png")
     title_squirrel_texture = load("res://assets/art/squirrel_front_acorn_v1.png")
     bark_texture = load("res://assets/art/ui_textures/oak_bark_tile_v1.png")
+    pause_log_texture = load("res://assets/art/ui_textures/pause_log_v1.png")
     moss_texture = load("res://assets/art/ui_textures/moss_panel_tile_v1.png")
     leaf_button_texture = load("res://assets/art/ui_textures/leaf_button_plaque_v1.png")
     _load_save()
@@ -696,7 +701,8 @@ func _draw_title() -> void:
     _draw_leaf_button(Rect2(265, 610, 550, 112), TITLE_CTA, true, Color("#b76a39"))
 
 func _map_label_rect(position: Vector2) -> Rect2:
-    var x := position.x - MAP_LABEL_SIZE.x - 20.0 if position.x < W * 0.5 else position.x + 20.0
+    var horizontal_clearance := MAP_NODE_RADIUS + MAP_LABEL_GAP
+    var x := position.x - MAP_LABEL_SIZE.x - horizontal_clearance if position.x < W * 0.5 else position.x + horizontal_clearance
     return Rect2(x, position.y - MAP_LABEL_SIZE.y * 0.5, MAP_LABEL_SIZE.x, MAP_LABEL_SIZE.y)
 
 func _map_crossing_samples(path: PackedVector2Array) -> PackedVector2Array:
@@ -784,8 +790,8 @@ func _draw_game() -> void:
     _draw_goal()
     _draw_wood_panel(Rect2(38, SAFE_TOP, 505, 94), Color("#244338",0.88))
     _text("LEVEL %d  %s" % [level_number, definition.name], Vector2(65, SAFE_TOP + 62), 31, Color("#fff0b0"))
-    _draw_textured_medallion(PAUSE_RECT.get_center(), 40.0, true, false)
-    _text("II", Vector2(972, SAFE_TOP + 58), 30)
+    if pause_log_texture != null:
+        draw_texture_rect(pause_log_texture, PAUSE_RECT, false)
     for drop in drops:
         _draw_drop(drop)
     for particle in particles:
@@ -926,12 +932,11 @@ func _draw_settings_gear(center: Vector2, radius: float) -> void:
 
 func _draw_textured_medallion(center: Vector2, radius: float, unlocked: bool, completed: bool) -> void:
     draw_circle(center, radius, Color("#8d5a33", 0.78) if unlocked else Color("#45514b", 0.92))
-    # The tiled bark sits within the inscribed face, avoiding square texture
-    # corners outside the carved circular rim.
-    var tile_half := radius * 0.58
-    if bark_texture != null:
-        draw_texture_rect(bark_texture, Rect2(center - Vector2.ONE * tile_half, Vector2.ONE * tile_half * 2.0), true, Color(0.85, 0.68, 0.46, 0.76) if unlocked else Color(0.38, 0.43, 0.40, 0.76))
+    draw_arc(center, radius - 4.0, 0.0, TAU, 32, Color("#f3d58c", 0.58) if unlocked else Color("#a6b0a3", 0.42), 3.0)
+    draw_circle(center, radius - 9.0, Color("#a76c3e", 0.76) if unlocked else Color("#58645d", 0.9))
+    draw_arc(center, radius - 12.0, 0.0, TAU, 32, Color("#56331f", 0.65), 3.0)
     draw_circle(center, radius - 15.0, Color("#d9a15c", 0.62) if completed else Color("#b57842", 0.58) if unlocked else Color("#69746c", 0.72))
+    draw_arc(center, radius - 19.0, 0.0, TAU, 32, Color("#f5d893", 0.25) if unlocked else Color("#c7d0c2", 0.2), 2.0)
 
 func _draw_drop(drop: Dictionary) -> void:
     if drop.kind == "limb":
@@ -949,7 +954,7 @@ func _draw_drop(drop: Dictionary) -> void:
             plaque.border_width_left = 3; plaque.border_width_right = 3
             plaque.border_width_top = 3; plaque.border_width_bottom = 3
             draw_style_box(plaque, label_rect)
-            _text("RUSTLE!", Vector2(label_rect.position.x, label_rect.position.y + 46.0), 31, Color("#fff2a6"), HORIZONTAL_ALIGNMENT_CENTER, label_rect.size.x)
+            _text("INCOMING!", Vector2(label_rect.position.x, label_rect.position.y + 46.0), 31, Color("#fff2a6"), HORIZONTAL_ALIGNMENT_CENTER, label_rect.size.x)
         else:
             _draw_hazard(Vector2(drop.x, drop.y), drop.rotation, str(drop.skin), drop.variant, 1.35 * drop.width)
     elif drop.kind == "leaf":
@@ -976,6 +981,11 @@ func _draw_collectible(center: Vector2, rotation: float, variant: int, scale: fl
     draw_set_transform(Vector2.ZERO)
 
 func _draw_hazard(center: Vector2, rotation: float, skin: String, variant: int, scale: float) -> void:
+    if skin == "leaf" and posmod(variant, 4) == 3 and yellow_leaf_texture != null:
+        draw_set_transform(center, rotation, Vector2.ONE * scale)
+        draw_texture_rect(yellow_leaf_texture, Rect2(-78, -78, 156, 156), false)
+        draw_set_transform(Vector2.ZERO)
+        return
     var texture := _hazard_texture_for(skin)
     if texture == null:
         _draw_acorn(center, rotation, Color("#d57136"), 0, scale)

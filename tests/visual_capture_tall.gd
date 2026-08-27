@@ -39,6 +39,8 @@ func _init() -> void:
     scene.drops = [{"kind":"leaf", "skin":"needle", "variant":0, "x":scene.LANE_X[2], "base_x":scene.LANE_X[2], "y":710.0,
         "speed":0.0, "rotation":0.34, "scale":1.0, "wobble":0.0, "seed":0.0, "age":0.0}]
     await _capture(scene, "level06_needles")
+    scene.drops = [{"kind":"leaf", "skin":"leaf", "variant":3, "x":scene.LANE_X[2], "base_x":scene.LANE_X[2], "y":710.0, "speed":0.0, "rotation":0.18, "scale":1.0, "wobble":0.0, "seed":0.0, "age":0.0}]
+    await _capture(scene, "leaf_yellow_clean")
     scene.drops.clear()
     scene.paused = true; await _capture(scene, "pause")
     scene.paused = false

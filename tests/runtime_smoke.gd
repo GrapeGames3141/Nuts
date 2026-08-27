@@ -13,9 +13,11 @@ func _init() -> void:
     assert(ResourceLoader.exists("res://assets/art/items/pinecone_strip.png"))
     assert(ResourceLoader.exists("res://assets/art/items/seasonal_hazards.png"))
     assert(ResourceLoader.exists("res://assets/art/items/branch_clean_v1.png"))
+    assert(ResourceLoader.exists("res://assets/art/items/leaf_yellow_clean_v1.png"))
     assert(ResourceLoader.exists("res://assets/art/items/pine_needle_cluster_v1.png"))
     assert(ResourceLoader.exists("res://assets/art/squirrel_front_acorn_v1.png"))
     assert(ResourceLoader.exists("res://assets/art/ui_textures/oak_bark_tile_v1.png"))
+    assert(ResourceLoader.exists("res://assets/art/ui_textures/pause_log_v1.png"))
     assert(ResourceLoader.exists("res://assets/art/ui_textures/moss_panel_tile_v1.png"))
     assert(ResourceLoader.exists("res://assets/art/ui_textures/leaf_button_plaque_v1.png"))
     scene.screen = "title"
@@ -131,6 +133,13 @@ func _init() -> void:
         var map_pos: Vector2 = scene._map_node_position(number)
         assert(map_pos.x > scene.MAP_NODE_RADIUS and map_pos.x < scene.W - scene.MAP_NODE_RADIUS)
         assert(map_pos.y > scene.SAFE_TOP + scene.MAP_NODE_RADIUS and map_pos.y < scene.H - scene.MAP_NODE_RADIUS)
+        var label_rect: Rect2 = scene._map_label_rect(map_pos)
+        assert(label_rect.position.x >= 0.0 and label_rect.end.x <= scene.W)
+        assert(label_rect.position.y >= scene.SAFE_TOP and label_rect.end.y <= scene.H)
+        if map_pos.x < scene.W * 0.5:
+            assert(label_rect.end.x <= map_pos.x - scene.MAP_NODE_RADIUS - scene.MAP_LABEL_GAP + 0.01)
+        else:
+            assert(label_rect.position.x >= map_pos.x + scene.MAP_NODE_RADIUS + scene.MAP_LABEL_GAP - 0.01)
     scene.screen = "map"
     scene._process(0.0)
     assert(not scene.squirrel.visible)
