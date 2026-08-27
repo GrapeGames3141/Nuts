@@ -8,6 +8,9 @@ const W := 1080.0
 const H := 1920.0
 const PLAY_RIGHT := 800.0
 const FLOOR_Y := 1510.0
+const GROUND_LINE_Y := FLOOR_Y + 85.0
+# The generated sprite's feet sit 30 px below its visual center at this scale.
+const SQUIRREL_Y := FLOOR_Y + 55.0
 const FLATTEN_HOLD_SECONDS := 1.5
 const POP_RECOVERY_SECONDS := 0.55
 const LANE_X := [105.0, 270.0, 435.0, 600.0, 765.0]
@@ -73,7 +76,7 @@ func _play_sfx(kind: String) -> void:
 func _make_squirrel() -> void:
     squirrel = AnimatedSprite2D.new()
     squirrel.name = "SquirrelAnimatedSprite"
-    squirrel.position = Vector2(player_x, FLOOR_Y + 25.0)
+    squirrel.position = Vector2(player_x, SQUIRREL_Y)
     squirrel.scale = Vector2(0.44, 0.44)
     squirrel.centered = true
     sheet = load("res://assets/art/squirrel_sheet_clean.png")
@@ -116,7 +119,7 @@ func _update_play(delta: float) -> void:
         _spawn_event(events[event_cursor])
         event_cursor += 1
     player_x = move_toward(player_x, player_target_x, delta * 1320.0)
-    squirrel.position.x = player_x
+    squirrel.position = Vector2(player_x, SQUIRREL_Y)
     if absf(player_x - player_target_x) > 12.0:
         squirrel.play("run_left" if player_target_x < player_x else "run_right")
     elif squirrel.animation != "idle":
@@ -451,7 +454,7 @@ func _draw_game() -> void:
         _draw_drop(drop)
     for particle in particles:
         draw_circle(particle.p, 7.0 * particle.life + 2.0, particle.color)
-    draw_line(Vector2(55,FLOOR_Y+85), Vector2(PLAY_RIGHT,FLOOR_Y+85), Color("#6a4a31"), 12)
+    draw_line(Vector2(55,GROUND_LINE_Y), Vector2(PLAY_RIGHT,GROUND_LINE_Y), Color("#6a4a31"), 12)
     if status_time > 0.0:
         _panel(Rect2(80, 1290, 700, 90), Color("#315443",0.93))
         _text(status_text, Vector2(105, 1350), 35, Color("#fff5cc"), HORIZONTAL_ALIGNMENT_CENTER, 650)

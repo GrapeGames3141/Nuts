@@ -6,6 +6,9 @@ func _init() -> void:
     await process_frame
     scene._start_level(1)
     assert(scene.screen == "play")
+    assert(scene.SQUIRREL_Y == scene.FLOOR_Y + 55.0)
+    assert(scene.squirrel.position.y == scene.SQUIRREL_Y)
+    assert(scene.GROUND_LINE_Y - scene.squirrel.position.y == 30.0)
     scene._set_lane(4)
     assert(scene.player_lane == 4)
     assert(scene.squirrel.sprite_frames.has_animation("idle"))
