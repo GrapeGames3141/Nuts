@@ -6,6 +6,15 @@ const NutsProceduralAudio = preload("res://scripts/procedural_audio.gd")
 
 const W := 1080.0
 const H := 1920.0
+const SAFE_TOP := 84.0
+const PAUSE_RECT := Rect2(953.0, SAFE_TOP, 85.0, 85.0)
+const PAUSE_MODAL_RECT := Rect2(130.0, 650.0, 670.0, 520.0)
+const PAUSE_BUTTON_RECTS := [Rect2(170.0, 815.0, 590.0, 86.0), Rect2(170.0, 920.0, 590.0, 86.0), Rect2(170.0, 1025.0, 590.0, 86.0)]
+const RESULTS_PANEL_RECT := Rect2(100.0, 400.0, 880.0, 850.0)
+const RESULTS_BUTTON_RECTS := [Rect2(230.0, 940.0, 620.0, 76.0), Rect2(230.0, 1035.0, 620.0, 76.0), Rect2(230.0, 1130.0, 620.0, 76.0)]
+const MAP_BOTTOM_NODE_Y := 1600.0
+const MAP_TOP_NODE_Y := 440.0
+const MAP_NODE_STEP := (MAP_BOTTOM_NODE_Y - MAP_TOP_NODE_Y) / 9.0
 const PLAY_RIGHT := 800.0
 const FLOOR_Y := H - 175.0
 const GROUND_LINE_Y := H - 90.0
@@ -27,6 +36,7 @@ const PINECONE_NAMES := ["Ponderosa", "Sugar Pine", "Spruce", "Fir"]
 
 var screen := "title"
 var level_number := 1
+var map_page := 1
 var definition: Dictionary = {}
 var logic := GameLogic.new()
 var events: Array = []
@@ -38,9 +48,11 @@ var player_lane := 2
 var player_x := LANE_X[2]
 var player_target_x := player_x
 var squirrel: AnimatedSprite2D
+var carry_sprites: Array[Sprite2D] = []
 var sheet: Texture2D
 var background: Texture2D
 var trail_background: Texture2D
+var trail_background_2: Texture2D
 var item_textures: Dictionary = {}
 var hazard_texture: Texture2D
 var leaf_texture: Texture2D
@@ -55,11 +67,14 @@ var audio_player: AudioStreamPlayer
 var music_player: AudioStreamPlayer
 var audio_bank: NutsProceduralAudio
 var idle_time := 0.0
+var crossing_time := 0.0
+var crossing_target_page := 1
 
 func _ready() -> void:
     rng.seed = 84519
     background = load("res://assets/art/forest_background.png")
     trail_background = load("res://assets/art/seasonal/tree_trail.png")
+    trail_background_2 = load("res://assets/art/seasonal/tree_trail_2.png")
     item_textures = {
         "acorn": load("res://assets/art/items/acorn_strip.png"),
         "pinecone": load("res://assets/art/items/pinecone_strip.png")
@@ -99,7 +114,7 @@ func _make_squirrel() -> void:
     squirrel.position = Vector2(player_x, SQUIRREL_Y)
     squirrel.scale = Vector2.ONE * SQUIRREL_BASE_SCALE
     squirrel.centered = true
-    sheet = load("res://assets/art/squirrel_sheet_clean.png")
+    sheet = load("res://assets/art/squirrel_sheet_packed.png")
     if sheet == null:
         sheet = load("res://assets/art/squirrel_reference.png")
     var frames := SpriteFrames.new()
@@ -114,19 +129,28 @@ func _make_squirrel() -> void:
     squirrel.animation = "idle"
     squirrel.play()
     add_child(squirrel)
+    # These are deliberately separate children, added after the squirrel, so the
+    # collected stack sits in front of the paws instead of being hidden by it.
+    for slot in 5:
+        var carried := Sprite2D.new()
+        carried.name = "CarriedItem%d" % slot
+        carried.visible = false
+        carried.z_index = 2
+        add_child(carried)
+        carry_sprites.append(carried)
 
 func _sheet_frame(index: int) -> Texture2D:
     if sheet == null: return null
     var atlas := AtlasTexture.new()
     atlas.atlas = sheet
     var cell := Vector2i(sheet.get_width() / 4, sheet.get_height() / 3)
-    var row := index / 4
-    # The generated recovery row has extra ear/headroom above the normal cell boundary.
-    atlas.region = Rect2i((index % 4) * cell.x, row * cell.y - (28 if row == 2 else 0), cell.x, cell.y + (28 if row == 2 else 0))
+    atlas.region = Rect2i((index % 4) * cell.x, (index / 4) * cell.y, cell.x, cell.y)
     return atlas
 
 func _process(delta: float) -> void:
-    squirrel.visible = screen == "play" or screen == "recover"
+    _update_map_crossing(delta)
+    if crossing_time <= 0.0:
+        _apply_screen_squirrel()
     if status_time > 0.0:
         status_time -= delta
     if screen == "play" and not paused:
@@ -134,7 +158,46 @@ func _process(delta: float) -> void:
     elif screen == "recover":
         _update_recovery(delta)
     _update_particles(delta)
+    _update_carry_stack()
     queue_redraw()
+
+func _update_map_crossing(delta: float) -> void:
+    if crossing_time <= 0.0:
+        return
+    crossing_time = maxf(0.0, crossing_time - delta)
+    var progress := 1.0 - crossing_time / 0.6
+    var from := Vector2(835.0, 270.0) if crossing_target_page == 2 else Vector2(245.0, 270.0)
+    var to := Vector2(245.0, 270.0) if crossing_target_page == 2 else Vector2(835.0, 270.0)
+    squirrel.visible = true
+    squirrel.position = from.lerp(to, progress)
+    squirrel.scale = Vector2.ONE * SQUIRREL_BASE_SCALE * 0.42
+    squirrel.rotation = 0.0
+    squirrel.play("run_right" if crossing_target_page == 2 else "run_left")
+    if crossing_time <= 0.0:
+        map_page = crossing_target_page
+        squirrel.visible = false
+
+func _begin_tree_crossing(target_page: int) -> void:
+    if target_page == map_page:
+        return
+    crossing_target_page = target_page
+    crossing_time = 0.6
+
+func _apply_screen_squirrel() -> void:
+    if screen == "title":
+        squirrel.visible = true
+        squirrel.position = Vector2(W * 0.5, 1385.0)
+        squirrel.scale = Vector2.ONE * 0.68
+        squirrel.rotation = 0.0
+        if squirrel.animation != "idle": squirrel.play("idle")
+    elif screen == "results":
+        squirrel.visible = true
+        squirrel.position = Vector2(W * 0.5, 1500.0)
+        squirrel.scale = Vector2.ONE * 0.46
+        squirrel.rotation = 0.0
+        if squirrel.animation != "idle": squirrel.play("idle")
+    else:
+        squirrel.visible = screen == "play" or screen == "recover"
 
 func _update_play(delta: float) -> void:
     elapsed += delta
@@ -144,9 +207,11 @@ func _update_play(delta: float) -> void:
     player_x = move_toward(player_x, player_target_x, delta * 1320.0)
     if absf(player_x - player_target_x) > 12.0:
         _reset_squirrel_visual()
+        squirrel.flip_h = false
         squirrel.play("run_left" if player_target_x < player_x else "run_right")
     else:
         if squirrel.animation != "idle": squirrel.play("idle")
+        squirrel.flip_h = player_lane == 4
         _apply_idle_visual(delta)
     for drop in drops.duplicate():
         _move_drop(drop, delta)
@@ -264,6 +329,7 @@ func _catch(drop: Dictionary) -> void:
         _feedback("Oops - one nut slipped away", Color("#ffd1ae"))
         _spark(Vector2(drop.x, FLOOR_Y), Color("#d85840"), 8)
         _haptic(45)
+    _update_carry_stack()
 
 func _limb_hits_player(drop: Dictionary) -> bool:
     var half_width := 72.0 + 74.0 * float(drop.width - 1)
@@ -282,12 +348,13 @@ func _limb_hit(drop: Dictionary) -> void:
     _feedback("TIMBER!", Color("#fff0bd"))
     _play_sfx("limb")
     _haptic(120)
+    _update_carry_stack()
 
 func _finish_level() -> void:
     var stars := logic.stars()
     var key := str(level_number)
     save_data.ratings[key] = max(int(save_data.ratings.get(key, 0)), stars)
-    save_data.unlocked = min(10, max(int(save_data.unlocked), level_number + 1))
+    save_data.unlocked = min(20, max(int(save_data.unlocked), level_number + 1))
     _save()
     screen = "results"
     drops.clear()
@@ -296,12 +363,13 @@ func _finish_level() -> void:
     _feedback("Recipe complete!", Color("#fff4ad"))
     _spark(Vector2(player_x, FLOOR_Y), Color("#ffe58b"), 24)
     _haptic(45)
+    _update_carry_stack()
 
 func _start_level(number: int) -> void:
-    level_number = number
-    definition = LevelData.make(number, 7000 + number * 31)
+    level_number = clampi(number, 1, 20)
+    definition = LevelData.make(level_number, 7000 + level_number * 31)
     background = _background_for(str(definition.theme.background))
-    logic.begin(definition.recipe, 7000 + number * 31)
+    logic.begin(definition.recipe, 7000 + level_number * 31)
     events = definition.events
     drops.clear()
     particles.clear()
@@ -313,8 +381,9 @@ func _start_level(number: int) -> void:
     _reset_squirrel_visual()
     squirrel.play("idle")
     paused = false
+    map_page = 1 if level_number <= 10 else 2
     screen = "play"
-    _feedback("Level %d: %s" % [number, definition.name], Color("#fff1bb"))
+    _feedback("Level %d: %s" % [level_number, definition.name], Color("#fff1bb"))
     status_time = 1.8
 
 func _feedback(message: String, color: Color) -> void:
@@ -345,10 +414,12 @@ func _unhandled_input(event: InputEvent) -> void:
     var mouse: bool = event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT
     if press or drag or mouse:
         var point: Vector2 = event.position
+        if screen == "map" and crossing_time > 0.0:
+            return
         if screen == "play":
             if paused:
                 _pause_click(point)
-            elif point.x > 940 and point.y < 150:
+            elif PAUSE_RECT.has_point(point):
                 paused = true
                 _play_sfx("button")
             else:
@@ -397,21 +468,21 @@ func _retry_level() -> void:
     _start_level(level_number)
 
 func _pause_click(point: Vector2) -> void:
-    if Rect2(230, 815, 620, 86).has_point(point):
+    if PAUSE_BUTTON_RECTS[0].has_point(point):
         paused = false
-    elif Rect2(230, 920, 620, 86).has_point(point):
+    elif PAUSE_BUTTON_RECTS[1].has_point(point):
         _retry_level()
-    elif Rect2(230, 1025, 620, 86).has_point(point):
+    elif PAUSE_BUTTON_RECTS[2].has_point(point):
         paused = false
         screen = "map"
     _play_sfx("button")
 
 func _results_click(point: Vector2) -> void:
-    if Rect2(230, 950, 620, 76).has_point(point) and level_number < 10:
+    if RESULTS_BUTTON_RECTS[0].has_point(point) and level_number < 20:
         _start_level(level_number + 1)
-    elif Rect2(230, 1040, 620, 76).has_point(point):
+    elif RESULTS_BUTTON_RECTS[1].has_point(point):
         _retry_level()
-    elif Rect2(230, 1130, 620, 76).has_point(point):
+    elif RESULTS_BUTTON_RECTS[2].has_point(point):
         screen = "map"
     _play_sfx("button")
 
@@ -429,21 +500,28 @@ func _settings_click(point: Vector2) -> void:
     _play_sfx("button")
 
 func _map_click(point: Vector2) -> void:
-    if point.x > 875 and point.y < 190:
+    if Rect2(880, 92, 105, 90).has_point(point):
         screen = "settings"
         return
-    for number in range(1, 11):
+    if Rect2(55, 210, 125, 76).has_point(point):
+        _begin_tree_crossing(1)
+        return
+    if Rect2(860, 210, 165, 76).has_point(point) and int(save_data.unlocked) >= 11:
+        _begin_tree_crossing(2)
+        return
+    var first := 1 if map_page == 1 else 11
+    for number in range(first, first + 10):
         var pos := _map_node_position(number)
         if point.distance_to(pos) < 80.0 and number <= int(save_data.unlocked):
             _start_level(number)
             return
 
 func _map_node_position(number: int) -> Vector2:
-    var index := number - 1
-    return Vector2(245.0 if number % 2 == 1 else 700.0, 1600.0 - index * 140.0)
+    var index := (number - 1) % 10
+    return Vector2(245.0 if number % 2 == 1 else 700.0, MAP_BOTTOM_NODE_Y - index * MAP_NODE_STEP)
 
 func _draw() -> void:
-    var page_background := trail_background if screen == "map" and trail_background != null else background
+    var page_background := (trail_background if map_page == 1 else trail_background_2) if screen == "map" else background
     if page_background != null:
         draw_texture_rect(page_background, Rect2(0, 0, W, H), false, Color(1,1,1,0.72))
     draw_rect(Rect2(0,0,W,H), Color("#173f37", 0.32))
@@ -481,18 +559,19 @@ func _draw_title() -> void:
     _text("A woodland pocket game", Vector2(0, 1100), 25, Color("#d5e6ca"), HORIZONTAL_ALIGNMENT_CENTER, W)
 
 func _draw_map() -> void:
-    _panel(Rect2(55, 45, 970, 130), Color("#234238", 0.9))
-    _text("TREE TRAIL", Vector2(95, 168), 62, Color("#fff0ac"))
-    _text("ROOTS TO CROWN", Vector2(615, 145), 26, Color("#d7e9cc"))
+    _panel(Rect2(55, SAFE_TOP, 970, 130), Color("#234238", 0.9))
+    _text("TREE %d TRAIL" % map_page, Vector2(95, SAFE_TOP + 123), 62, Color("#fff0ac"))
+    _text("ROOTS TO CROWN", Vector2(615, SAFE_TOP + 100), 26, Color("#d7e9cc"))
     _panel(Rect2(880, 92, 105, 90), Color("#6f8c70"))
-    _text("...", Vector2(906, 151), 44)
-    for n in range(1, 10):
+    _draw_settings_gear(Vector2(932, 137), 27.0)
+    var first := 1 if map_page == 1 else 11
+    for n in range(first, first + 9):
         var from := _map_node_position(n)
         var to := _map_node_position(n + 1)
         var bend := Vector2((from.x + to.x) * 0.5, (from.y + to.y) * 0.5 + 22.0)
         draw_polyline(PackedVector2Array([from, bend, to]), Color("#68462f", 0.92), 24, true)
         draw_polyline(PackedVector2Array([from, bend, to]), Color("#b77c43", 0.8), 9, true)
-    for n in range(1, 11):
+    for n in range(first, first + 10):
         var p := _map_node_position(n)
         var unlocked := n <= int(save_data.unlocked)
         var completed := int(save_data.ratings.get(str(n), 0)) > 0
@@ -506,6 +585,10 @@ func _draw_map() -> void:
         for slot in range(3):
             _draw_collectible(p + Vector2(-38 + slot * 38, 105), 0.0, slot, 0.25, "acorn", slot >= stars)
         _text(LevelData.NAMES[n-1], p + Vector2(-105, -91), 23, Color("#f6f2ce"), HORIZONTAL_ALIGNMENT_CENTER, 210)
+    _draw_button(Rect2(55, 210, 125, 76), "TREE 1", map_page == 2)
+    _draw_button(Rect2(860, 210, 165, 76), "TREE 2", map_page == 1 and int(save_data.unlocked) >= 11)
+    if map_page == 1 and int(save_data.unlocked) >= 11 and crossing_time <= 0.0:
+        _text("CROSS THE BRANCH", Vector2(0, 316), 23, Color("#fff1b7"), HORIZONTAL_ALIGNMENT_CENTER, W)
     _text("Follow the branches from the roots to the crown.", Vector2(0, 1815), 26, Color("#eef1d7"), HORIZONTAL_ALIGNMENT_CENTER, W)
 
 func _draw_settings() -> void:
@@ -518,14 +601,15 @@ func _draw_settings() -> void:
 
 func _draw_results() -> void:
     var stars := logic.stars()
-    _panel(Rect2(100, 430, 880, 700))
+    _panel(RESULTS_PANEL_RECT)
     _text("RECIPE COMPLETE!", Vector2(0, 585), 65, Color("#fff0ac"), HORIZONTAL_ALIGNMENT_CENTER, W)
     _text("Level %d - %s" % [level_number, definition.name], Vector2(0, 665), 35, Color("#e5efd2"), HORIZONTAL_ALIGNMENT_CENTER, W)
-    _text("o".repeat(stars) + "-".repeat(3-stars), Vector2(0, 815), 108, Color("#ffe699"), HORIZONTAL_ALIGNMENT_CENTER, W)
+    for slot in range(3):
+        _draw_collectible(Vector2(430 + slot * 110, 770), 0.0, slot, 0.58, "acorn", slot >= stars)
     _text("%d mistake%s" % [logic.mistakes, "" if logic.mistakes == 1 else "s"], Vector2(0, 890), 32, Color("#f7dfb9"), HORIZONTAL_ALIGNMENT_CENTER, W)
-    _draw_button(Rect2(230, 950, 620, 76), "NEXT LEVEL" if level_number < 10 else "ALL 10 LEVELS COMPLETE", level_number < 10)
-    _draw_button(Rect2(230, 1040, 620, 76), "RETRY LEVEL", true)
-    _draw_button(Rect2(230, 1130, 620, 76), "TREE TRAIL", true)
+    _draw_button(RESULTS_BUTTON_RECTS[0], "NEXT LEVEL" if level_number < 20 else "ALL 20 LEVELS COMPLETE", level_number < 20)
+    _draw_button(RESULTS_BUTTON_RECTS[1], "RETRY LEVEL", true)
+    _draw_button(RESULTS_BUTTON_RECTS[2], "TREE TRAIL", true)
 
 func _draw_game() -> void:
     for x in LANE_X:
@@ -533,25 +617,24 @@ func _draw_game() -> void:
     if bool(definition.get("theme", {}).get("ambient", false)):
         _draw_ambient_snow()
     _draw_goal()
-    _panel(Rect2(38, 34, 505, 94), Color("#244338",0.88))
-    _text("LEVEL %d  %s" % [level_number, definition.name], Vector2(65, 96), 31, Color("#fff0b0"))
-    _panel(Rect2(953, 36, 85, 85), Color("#6e875e"))
-    _text("II", Vector2(972, 94), 30)
+    _panel(Rect2(38, SAFE_TOP, 505, 94), Color("#244338",0.88))
+    _text("LEVEL %d  %s" % [level_number, definition.name], Vector2(65, SAFE_TOP + 62), 31, Color("#fff0b0"))
+    _panel(PAUSE_RECT, Color("#6e875e"))
+    _text("II", Vector2(972, SAFE_TOP + 58), 30)
     for drop in drops:
         _draw_drop(drop)
     for particle in particles:
         draw_circle(particle.p, 7.0 * particle.life + 2.0, particle.color)
     draw_line(Vector2(55,GROUND_LINE_Y), Vector2(PLAY_RIGHT,GROUND_LINE_Y), Color("#6a4a31"), 12)
-    _draw_held_stack()
     if status_time > 0.0:
         _panel(Rect2(80, 1290, 700, 90), Color("#315443",0.93))
         _text(status_text, Vector2(105, 1350), 35, Color("#fff5cc"), HORIZONTAL_ALIGNMENT_CENTER, 650)
     if paused:
-        _panel(Rect2(130, 650, 670, 520), Color("#203b34",0.96))
+        _panel(PAUSE_MODAL_RECT, Color("#203b34",0.96))
         _text("PAUSED", Vector2(0, 790), 72, Color("#fff0ac"), HORIZONTAL_ALIGNMENT_CENTER, W)
-        _draw_button(Rect2(230, 815, 620, 86), "RESUME", true)
-        _draw_button(Rect2(230, 920, 620, 86), "RETRY", true)
-        _draw_button(Rect2(230, 1025, 620, 86), "TREE TRAIL", true)
+        _draw_button(PAUSE_BUTTON_RECTS[0], "RESUME", true)
+        _draw_button(PAUSE_BUTTON_RECTS[1], "RETRY", true)
+        _draw_button(PAUSE_BUTTON_RECTS[2], "TREE TRAIL", true)
 
 func _draw_ambient_snow() -> void:
     for i in 28:
@@ -574,12 +657,44 @@ func _draw_goal() -> void:
         _text(str(i+1), Vector2(850,y+12), 25, Color.WHITE)
     _text("FIRST", Vector2(850, 973), 20, Color("#bed7bc"))
 
-func _draw_held_stack() -> void:
+func _update_carry_stack() -> void:
     var family := str(definition.get("theme", {}).get("family", "acorn"))
-    for i in logic.progress:
+    var texture: Texture2D = item_textures.get(family)
+    if texture == null:
+        for carried in carry_sprites:
+            carried.visible = false
+            carried.texture = null
+        return
+    for i in carry_sprites.size():
+        var carried := carry_sprites[i]
+        carried.visible = i < logic.progress and i < logic.recipe.size() and screen == "play"
+        if not carried.visible:
+            continue
         var wobble := sin(elapsed * 5.0 + i * 1.7) * 0.11
-        var offset := Vector2((i % 2) * 18.0 - 9.0, -48.0 - i * 42.0)
-        _draw_collectible(Vector2(player_x, SQUIRREL_Y) + offset, wobble, logic.recipe[i], 0.48, family, false)
+        # Attach to the raised paw-side, not the face.  On lane 4 the stack
+        # mirrors inward, preserving the goal rail and the squirrel's eye.
+        var side := -1.0 if player_lane == 4 else 1.0
+        var offset := Vector2(side * (76.0 + (i % 2) * 11.0), -56.0 - i * 42.0)
+        carried.position = Vector2(player_x, SQUIRREL_Y) + offset
+        carried.rotation = wobble * side
+        # Source strips are deliberately high resolution: render carried nuts at
+        # a readable 74 reference pixels, not at the source-cell's native size.
+        var source_cell_width := float(texture.get_width()) / 4.0
+        carried.scale = Vector2.ONE * (74.0 / source_cell_width)
+        var atlas := AtlasTexture.new()
+        atlas.atlas = texture
+        var cell_width := texture.get_width() / 4
+        atlas.region = Rect2i(logic.recipe[i] * cell_width, 0, cell_width, texture.get_height())
+        carried.texture = atlas
+
+func _draw_settings_gear(center: Vector2, radius: float) -> void:
+    for tooth in 8:
+        var angle := TAU * tooth / 8.0
+        var from := center + Vector2(cos(angle), sin(angle)) * (radius - 2.0)
+        var to := center + Vector2(cos(angle), sin(angle)) * (radius + 8.0)
+        draw_line(from, to, Color("#fff0b4"), 7.0)
+    draw_circle(center, radius, Color("#fff0b4"))
+    draw_circle(center, radius * 0.42, Color("#52705e"))
 
 func _draw_drop(drop: Dictionary) -> void:
     if drop.kind == "limb":

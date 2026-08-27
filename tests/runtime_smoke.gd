@@ -5,6 +5,8 @@ func _init() -> void:
     root.add_child(scene)
     await process_frame
     assert(ResourceLoader.exists("res://assets/art/game_icon.png"))
+    assert(ResourceLoader.exists("res://assets/art/seasonal/tree_trail_2.png"))
+    assert(ResourceLoader.exists("res://assets/art/squirrel_sheet_packed.png"))
     assert(ResourceLoader.exists("res://assets/art/items/acorn_strip.png"))
     assert(ResourceLoader.exists("res://assets/art/items/pinecone_strip.png"))
     assert(ResourceLoader.exists("res://assets/art/items/seasonal_hazards.png"))
@@ -19,7 +21,9 @@ func _init() -> void:
     assert(scene.squirrel.sprite_frames.has_animation("flatten"))
     assert(scene.squirrel.sprite_frames.has_animation("pop"))
     var idle_frame: AtlasTexture = scene.squirrel.sprite_frames.get_frame_texture("idle", 0)
-    assert(idle_frame.region.position.y < scene.sheet.get_height() * 2 / 3)
+    assert(scene.sheet.get_width() == 2048 and scene.sheet.get_height() == 1536)
+    assert(idle_frame.region.size == Vector2(512, 512))
+    assert(idle_frame.region.position == Vector2(0, 1024))
     scene._update_play(0.2)
     assert(not is_equal_approx(scene.squirrel.scale.x, scene.SQUIRREL_BASE_SCALE))
     assert(not is_equal_approx(scene.squirrel.position.y, scene.SQUIRREL_Y))
@@ -39,16 +43,34 @@ func _init() -> void:
     assert(scene.definition.theme.minor == "snowflake" and scene.definition.theme.major == "icicle" and scene.hazard_texture != null)
     assert(scene._map_node_position(1).y > scene._map_node_position(10).y)
     assert(scene._map_node_position(1).x != scene._map_node_position(2).x)
-    assert(scene._map_node_position(10).y >= 330.0)
+    assert(scene._map_node_position(10).y >= 420.0)
+    assert(scene._map_node_position(10).y > 400.0 and scene._map_node_position(1).y < 1700.0)
     scene.screen = "map"
     scene._process(0.0)
     assert(not scene.squirrel.visible)
+    assert(scene.map_page == 1)
+    scene.save_data.unlocked = 20
+    scene._map_click(Vector2(950, 240))
+    assert(scene.crossing_time > 0.0)
+    scene._update_map_crossing(0.01)
+    assert(scene.squirrel.visible)
+    scene._update_map_crossing(0.61)
+    assert(scene.map_page == 2 and scene._map_node_position(11).y > scene._map_node_position(20).y)
     scene.screen = "settings"
     scene._process(0.0)
     assert(not scene.squirrel.visible)
     scene._start_level(1)
     scene._process(0.0)
     assert(scene.squirrel.visible)
+    scene.logic.progress = 2
+    scene._update_carry_stack()
+    assert(scene.carry_sprites[0].visible and scene.carry_sprites[1].visible)
+    assert(scene.carry_sprites[0].position.y < scene.SQUIRREL_Y - 50.0 and scene.carry_sprites[0].position.x > scene.player_x + 20.0)
+    assert(scene.carry_sprites[0].z_index > scene.squirrel.z_index)
+    scene._set_lane(4)
+    scene.player_x = scene.LANE_X[4]
+    scene._update_carry_stack()
+    assert(scene.carry_sprites[0].position.x < scene.player_x and scene.carry_sprites[0].position.x < scene.PLAY_RIGHT)
     scene._limb_hit({})
     assert(scene.screen == "recover" and scene.recover_phase == 0)
     assert(is_equal_approx(scene.squirrel.scale.x, scene.SQUIRREL_BASE_SCALE))
@@ -74,8 +96,16 @@ func _init() -> void:
     scene.logic.progress = scene.logic.recipe.size()
     scene._finish_level()
     assert(int(scene.save_data.unlocked) >= 2)
-    for n in range(1,11):
+    for n in range(1,21):
         scene._start_level(n)
         assert(scene.logic.recipe.size() == (3 if n <= 3 else 4 if n <= 7 else 5))
+    scene._start_level(99)
+    assert(scene.level_number == 20 and scene.definition.number == 20)
+    scene.screen = "title"
+    scene._process(0.0)
+    assert(scene.squirrel.visible and scene.squirrel.position.y > 1200.0 and scene.squirrel.scale.x >= 0.65)
+    scene.screen = "results"
+    scene._process(0.0)
+    assert(scene.squirrel.visible and scene.squirrel.position.y > 1200.0)
     print("RUNTIME_SMOKE_PASS")
     quit()

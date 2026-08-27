@@ -50,10 +50,21 @@ func reset_after_limb() -> void:
 static func simulate_level(number: int, seed: int) -> bool:
     var def := LevelData.make(number, seed)
     if not LevelData.validate(def): return false
-    # Every target remains reachable with a 5-lane 0.22 s movement allowance.
-    var last_target_time := -10.0
+    # Model catch-zone arrivals plus telegraphed limb occupancy, rather than
+    # accepting a schedule based only on target spawn gaps.
+    var last_target_arrival := -10.0
+    var targets: Array = []
+    var limbs: Array = []
     for event in def.events:
         if event.kind == "acorn" and event.target:
-            if event.time - last_target_time < 2.0: return false
-            last_target_time = event.time
+            var arrival := LevelData.acorn_arrival_time(event.time, event.speed)
+            if arrival - last_target_arrival < 0.72: return false
+            last_target_arrival = arrival
+            targets.append({"lane": event.lane, "arrival": arrival})
+        elif event.kind == "limb":
+            limbs.append(event)
+    for limb in limbs:
+        var impact := LevelData.limb_arrival_time(limb.time, limb.warning, limb.speed)
+        for target in targets:
+            if LevelData.limb_conflicts_target(limb.lane, limb.width, impact, target): return false
     return true
