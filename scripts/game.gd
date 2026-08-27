@@ -22,9 +22,30 @@ const RESULTS_SQUIRREL_SOURCE_BOUNDS := Rect2(130.0, 29.0, 251.0, 274.0)
 const RESULTS_CARRY_SIZE := 74.0
 const RESULTS_CARRY_BASE_OFFSET := Vector2(140.0, -25.0)
 const RESULTS_CARRY_STEP_Y := 45.0
-const MAP_BOTTOM_NODE_Y := 1600.0
-const MAP_TOP_NODE_Y := 440.0
-const MAP_NODE_STEP := (MAP_BOTTOM_NODE_Y - MAP_TOP_NODE_Y) / 9.0
+const MAP_PAGE_LEVELS := 10
+const MAP_PAGE_COUNT := 2
+const MAP_NODE_RADIUS := 59.0
+const MAP_LABEL_SIZE := Vector2(188.0, 36.0)
+const MAP_PREVIOUS_RECT := Rect2(62.0, 228.0, 246.0, 68.0)
+const MAP_NEXT_RECT := Rect2(772.0, 228.0, 246.0, 68.0)
+# Authored positions sit on the visible roots, trunk forks and major boughs
+# in the two painted trees; there is deliberately no artificial rail overlay.
+const MAP_NODE_POSITIONS := [
+    [
+        Vector2(432.0, 1614.0), Vector2(625.0, 1490.0),
+        Vector2(445.0, 1358.0), Vector2(647.0, 1224.0),
+        Vector2(448.0, 1088.0), Vector2(636.0, 952.0),
+        Vector2(450.0, 816.0), Vector2(632.0, 682.0),
+        Vector2(466.0, 548.0), Vector2(620.0, 408.0)
+    ],
+    [
+        Vector2(430.0, 1608.0), Vector2(650.0, 1476.0),
+        Vector2(448.0, 1340.0), Vector2(660.0, 1202.0),
+        Vector2(438.0, 1060.0), Vector2(660.0, 918.0),
+        Vector2(450.0, 774.0), Vector2(665.0, 626.0),
+        Vector2(458.0, 482.0), Vector2(650.0, 360.0)
+    ]
+]
 const PLAY_RIGHT := 800.0
 const FLOOR_Y := H - 175.0
 const GROUND_LINE_Y := H - 90.0
@@ -102,13 +123,14 @@ var audio_bank: NutsProceduralAudio
 var idle_time := 0.0
 var crossing_time := 0.0
 var crossing_target_page := 1
+var crossing_start_page := 1
 var mouse_left_down := false
 
 func _ready() -> void:
     rng.seed = 84519
     background = load("res://assets/art/forest_background.png")
-    trail_background = load("res://assets/art/seasonal/tree_trail.png")
-    trail_background_2 = load("res://assets/art/seasonal/tree_trail_2.png")
+    trail_background = load("res://assets/art/seasonal/tree_trail_real_v1.png")
+    trail_background_2 = load("res://assets/art/seasonal/tree_trail_real_v2.png")
     item_textures = {
         "acorn": load("res://assets/art/items/acorn_strip.png"),
         "pinecone": load("res://assets/art/items/pinecone_strip.png")
@@ -215,13 +237,13 @@ func _update_map_crossing(delta: float) -> void:
         return
     crossing_time = maxf(0.0, crossing_time - delta)
     var progress := 1.0 - crossing_time / 0.6
-    var from := Vector2(835.0, 270.0) if crossing_target_page == 2 else Vector2(245.0, 270.0)
-    var to := Vector2(245.0, 270.0) if crossing_target_page == 2 else Vector2(835.0, 270.0)
+    var path := _map_crossing_path(crossing_target_page > crossing_start_page)
     squirrel.visible = true
-    squirrel.position = from.lerp(to, progress)
+    squirrel.position = path[0].bezier_interpolate(path[1], path[2], path[3], progress)
     squirrel.scale = Vector2.ONE * SQUIRREL_BASE_SCALE * 0.42
-    squirrel.rotation = 0.0
-    squirrel.play("run_right" if crossing_target_page == 2 else "run_left")
+    var tangent := path[0].bezier_derivative(path[1], path[2], path[3], progress)
+    squirrel.rotation = clampf(tangent.angle() * 0.16, -0.12, 0.12)
+    squirrel.play("run_right" if crossing_target_page > crossing_start_page else "run_left")
     if crossing_time <= 0.0:
         map_page = crossing_target_page
         squirrel.visible = false
@@ -229,8 +251,29 @@ func _update_map_crossing(delta: float) -> void:
 func _begin_tree_crossing(target_page: int) -> void:
     if target_page == map_page:
         return
+    if target_page < 1 or target_page > MAP_PAGE_COUNT:
+        return
+    if target_page > map_page and int(save_data.unlocked) < _map_page_first(target_page):
+        return
+    crossing_start_page = map_page
     crossing_target_page = target_page
     crossing_time = 0.6
+
+func _map_crossing_path(forward: bool) -> PackedVector2Array:
+    # A short natural bough leaves the current tree at the canopy edge. The
+    # page changes only after the squirrel reaches the neighboring tree.
+    if forward:
+        return PackedVector2Array([Vector2(690, 344), Vector2(790, 278), Vector2(938, 286), Vector2(1110, 246)])
+    return PackedVector2Array([Vector2(390, 344), Vector2(290, 278), Vector2(142, 286), Vector2(-30, 246)])
+
+func _map_page_first(page: int) -> int:
+    return (page - 1) * MAP_PAGE_LEVELS + 1
+
+func _map_can_navigate(direction: int) -> bool:
+    var target := map_page + direction
+    if target < 1 or target > MAP_PAGE_COUNT:
+        return false
+    return direction < 0 or int(save_data.unlocked) >= _map_page_first(target)
 
 func _apply_screen_squirrel() -> void:
     if title_squirrel != null:
@@ -441,7 +484,7 @@ func _start_level(number: int) -> void:
     _reset_squirrel_visual()
     squirrel.play("idle")
     paused = false
-    map_page = 1 if level_number <= 10 else 2
+    map_page = clampi(int((level_number - 1) / MAP_PAGE_LEVELS) + 1, 1, MAP_PAGE_COUNT)
     screen = "play"
     _feedback("Level %d: %s" % [level_number, definition.name], Color("#fff1bb"))
     status_time = 1.8
@@ -566,22 +609,24 @@ func _map_click(point: Vector2) -> void:
     if Rect2(880, 92, 105, 90).has_point(point):
         screen = "settings"
         return
-    if Rect2(55, 210, 125, 76).has_point(point):
-        _begin_tree_crossing(1)
+    if _map_can_navigate(-1) and MAP_PREVIOUS_RECT.has_point(point):
+        _begin_tree_crossing(map_page - 1)
         return
-    if Rect2(860, 210, 165, 76).has_point(point) and int(save_data.unlocked) >= 11:
-        _begin_tree_crossing(2)
+    if _map_can_navigate(1) and MAP_NEXT_RECT.has_point(point):
+        _begin_tree_crossing(map_page + 1)
         return
-    var first := 1 if map_page == 1 else 11
-    for number in range(first, first + 10):
+    var first := _map_page_first(map_page)
+    var last: int = min(first + MAP_PAGE_LEVELS, LevelData.NAMES.size() + 1)
+    for number in range(first, last):
         var pos := _map_node_position(number)
-        if point.distance_to(pos) < 80.0 and number <= int(save_data.unlocked):
+        if point.distance_to(pos) < MAP_NODE_RADIUS + 22.0 and number <= int(save_data.unlocked):
             _start_level(number)
             return
 
 func _map_node_position(number: int) -> Vector2:
-    var index := (number - 1) % 10
-    return Vector2(245.0 if number % 2 == 1 else 700.0, MAP_BOTTOM_NODE_Y - index * MAP_NODE_STEP)
+    var page := clampi(int((number - 1) / MAP_PAGE_LEVELS), 0, MAP_NODE_POSITIONS.size() - 1)
+    var index := posmod(number - 1, MAP_PAGE_LEVELS)
+    return MAP_NODE_POSITIONS[page][index]
 
 func _draw() -> void:
     var page_background := (trail_background if map_page == 1 else trail_background_2) if screen == "map" else background
@@ -650,38 +695,52 @@ func _draw_title() -> void:
     _text("Drag the squirrel through five lanes", Vector2(0, 558), 30, Color("#d8ecc8"), HORIZONTAL_ALIGNMENT_CENTER, W)
     _draw_leaf_button(Rect2(265, 610, 550, 112), TITLE_CTA, true, Color("#b76a39"))
 
+func _map_label_rect(position: Vector2) -> Rect2:
+    var x := position.x - MAP_LABEL_SIZE.x - 20.0 if position.x < W * 0.5 else position.x + 20.0
+    return Rect2(x, position.y - MAP_LABEL_SIZE.y * 0.5, MAP_LABEL_SIZE.x, MAP_LABEL_SIZE.y)
+
+func _map_crossing_samples(path: PackedVector2Array) -> PackedVector2Array:
+    var samples := PackedVector2Array()
+    for step in range(17):
+        samples.append(path[0].bezier_interpolate(path[1], path[2], path[3], float(step) / 16.0))
+    return samples
+
+func _draw_map_crossing_bough() -> void:
+    var samples := _map_crossing_samples(_map_crossing_path(crossing_target_page > crossing_start_page))
+    if samples.is_empty():
+        return
+    draw_polyline(samples, Color("#493023", 0.78), 15.0, true)
+    draw_polyline(samples, Color("#b17a45", 0.64), 4.0, true)
+
 func _draw_map() -> void:
-    _draw_wood_panel(Rect2(55, SAFE_TOP, 970, 130), Color("#234238", 0.9))
-    _text("TREE %d TRAIL" % map_page, Vector2(95, SAFE_TOP + 123), 62, Color("#fff0ac"))
-    _text("ROOTS TO CROWN", Vector2(615, SAFE_TOP + 100), 26, Color("#d7e9cc"))
-    _draw_textured_medallion(Vector2(932, 137), 42.0, true, false)
-    _draw_settings_gear(Vector2(932, 137), 27.0)
-    var first := 1 if map_page == 1 else 11
-    for n in range(first, first + 9):
-        var from := _map_node_position(n)
-        var to := _map_node_position(n + 1)
-        var bend := Vector2((from.x + to.x) * 0.5, (from.y + to.y) * 0.5 + 22.0)
-        draw_polyline(PackedVector2Array([from, bend, to]), Color("#68462f", 0.92), 24, true)
-        draw_polyline(PackedVector2Array([from, bend, to]), Color("#b77c43", 0.8), 9, true)
-    for n in range(first, first + 10):
+    if crossing_time > 0.0:
+        _draw_map_crossing_bough()
+    _draw_wood_panel(Rect2(55, SAFE_TOP, 970, 116), Color("#234238", 0.86))
+    _text("TREE %d TRAIL" % map_page, Vector2(92, SAFE_TOP + 82), 49, Color("#fff0ac"))
+    _text("ROOTS TO CROWN", Vector2(596, SAFE_TOP + 76), 23, Color("#d7e9cc"))
+    _draw_textured_medallion(Vector2(942, 141), 38.0, true, false)
+    _draw_settings_gear(Vector2(942, 141), 24.0)
+    var first := _map_page_first(map_page)
+    var last: int = min(first + MAP_PAGE_LEVELS, LevelData.NAMES.size() + 1)
+    for n in range(first, last):
         var p := _map_node_position(n)
         var unlocked := n <= int(save_data.unlocked)
         var completed := int(save_data.ratings.get(str(n), 0)) > 0
-        _draw_textured_medallion(p, 76.0, unlocked, completed)
-        draw_arc(p, 76, 0, TAU, 32, Color("#fff0b4", 0.78), 5)
+        _draw_textured_medallion(p, MAP_NODE_RADIUS, unlocked, completed)
+        draw_arc(p, MAP_NODE_RADIUS, 0, TAU, 32, Color("#fff0b4", 0.74), 4)
         if n == int(save_data.unlocked):
-            draw_arc(p, 91 + sin(elapsed * 4.0) * 5.0, 0, TAU, 32, Color("#fff3a8", 0.9), 5)
-        _text(str(n), p + Vector2(-17, 17), 48, Color.WHITE)
+            draw_arc(p, MAP_NODE_RADIUS + 12.0 + sin(elapsed * 4.0) * 4.0, 0, TAU, 32, Color("#fff3a8", 0.88), 4)
+        _text(str(n), p + Vector2(-14, 14), 40, Color.WHITE)
         var stars := int(save_data.ratings.get(str(n), 0))
         for slot in range(3):
-            _draw_collectible(p + Vector2(-38 + slot * 38, 105), 0.0, slot, 0.25, "acorn", slot >= stars)
-        _panel(Rect2(p.x - 112.0, p.y - 122.0, 224.0, 42.0), Color("#315544", 0.78))
-        _text(LevelData.NAMES[n-1], p + Vector2(-105, -91), 23, Color("#f6f2ce"), HORIZONTAL_ALIGNMENT_CENTER, 210)
-    _draw_leaf_button(Rect2(55, 210, 125, 76), "TREE 1", map_page == 2, Color("#6c8757"))
-    _draw_leaf_button(Rect2(860, 210, 165, 76), "TREE 2", map_page == 1 and int(save_data.unlocked) >= 11, Color("#6c8757"))
-    if map_page == 1 and int(save_data.unlocked) >= 11 and crossing_time <= 0.0:
-        _text("CROSS THE BRANCH", Vector2(0, 316), 23, Color("#fff1b7"), HORIZONTAL_ALIGNMENT_CENTER, W)
-    _text("Follow the branches from the roots to the crown.", Vector2(0, 1815), 26, Color("#eef1d7"), HORIZONTAL_ALIGNMENT_CENTER, W)
+            _draw_collectible(p + Vector2(-29 + slot * 29, 82), 0.0, slot, 0.19, "acorn", slot >= stars)
+        var label_rect := _map_label_rect(p)
+        _panel(label_rect, Color("#315544", 0.74))
+        _text(LevelData.NAMES[n-1], Vector2(label_rect.position.x, label_rect.position.y + 25), 19, Color("#f6f2ce"), HORIZONTAL_ALIGNMENT_CENTER, label_rect.size.x)
+    if _map_can_navigate(-1):
+        _draw_leaf_button(MAP_PREVIOUS_RECT, "PREVIOUS TREE", true, Color("#6c8757"))
+    if _map_can_navigate(1):
+        _draw_leaf_button(MAP_NEXT_RECT, "NEXT TREE", true, Color("#6c8757"))
 
 func _draw_settings() -> void:
     _draw_wood_panel(Rect2(105, 420, 870, 760))

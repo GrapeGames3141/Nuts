@@ -30,7 +30,9 @@ func _init() -> void:
     scene.save_data.unlocked = 20
     scene.screen = "title"; await _capture(scene, "title")
     scene.screen = "map"; scene.map_page = 1; await _capture(scene, "tree1")
-    scene.map_page = 2; await _capture(scene, "tree2")
+    scene._begin_tree_crossing(2)
+    scene._update_map_crossing(0.25); await _capture(scene, "crossing")
+    scene._update_map_crossing(1.0); await _capture(scene, "tree2")
     scene.screen = "settings"; await _capture(scene, "settings")
     scene._start_level(1); await _capture(scene, "play01")
     scene._start_level(6)
