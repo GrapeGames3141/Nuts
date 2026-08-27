@@ -82,6 +82,10 @@ const ACORN_NAMES := ["Oak", "Redcap", "Striped", "Gold"]
 const PINECONE_NAMES := ["Ponderosa", "Sugar Pine", "Spruce", "Fir"]
 const TITLE_CTA := "TAP TO PLAY"
 
+const UI_LEAF_HEADING_SIZE := 74.0
+const UI_LEAF_BUTTON_SIZE := 42.0
+const UI_LEAF_RESULT_SIZE := 70.0
+const UI_LEAF_GEAR_SIZE := 30.0
 var screen := "title"
 var level_number := 1
 var map_page := 1
@@ -117,6 +121,8 @@ var pause_log_texture: Texture2D
 var moss_texture: Texture2D
 var leaf_button_texture: Texture2D
 var save_data := {"version": 1, "unlocked": 1, "ratings": {}, "music": true, "sfx": true, "haptics": true}
+var ui_leaf_green_texture: Texture2D
+var ui_leaf_amber_texture: Texture2D
 var paused := false
 var recover_phase := 0
 var recover_time := 0.0
@@ -151,6 +157,8 @@ func _ready() -> void:
     pause_log_texture = load("res://assets/art/ui_textures/pause_log_v1.png")
     moss_texture = load("res://assets/art/ui_textures/moss_panel_tile_v1.png")
     leaf_button_texture = load("res://assets/art/ui_textures/leaf_button_plaque_v1.png")
+    ui_leaf_green_texture = load("res://assets/art/ui_textures/ui_leaf_green_v1.png")
+    ui_leaf_amber_texture = load("res://assets/art/ui_textures/ui_leaf_amber_v1.png")
     _load_save()
     _make_squirrel()
     _make_audio()
@@ -781,8 +789,8 @@ func _draw_results() -> void:
     _draw_tree_ring(RESULTS_MEDALLION_CENTER, RESULTS_MEDALLION_RADIUS)
     for leaf_index in 6:
         var leaf_angle := TAU * leaf_index / 6.0 + 0.24
-        var leaf_center := RESULTS_MEDALLION_CENTER + Vector2(cos(leaf_angle), sin(leaf_angle)) * (RESULTS_MEDALLION_RADIUS + 18.0)
-        _draw_leaf(leaf_center, Color("#b76b3d") if leaf_index % 2 == 0 else Color("#6e9c56"), 0.9, leaf_angle + 0.4)
+        var leaf_center := RESULTS_MEDALLION_CENTER + Vector2(cos(leaf_angle), sin(leaf_angle)) * (RESULTS_MEDALLION_RADIUS + 26.0)
+        _draw_ui_leaf(ui_leaf_amber_texture if leaf_index % 2 == 0 else ui_leaf_green_texture, leaf_center, UI_LEAF_RESULT_SIZE, leaf_angle + 0.4)
     _draw_wood_panel(RESULTS_RIBBON_RECT, Color("#8d512f", 0.97))
     _text("LEVEL %d  •  %s" % [level_number, definition.name], Vector2(RESULTS_RIBBON_RECT.position.x, RESULTS_RIBBON_RECT.position.y + 55.0), 31, Color("#fff4cb"), HORIZONTAL_ALIGNMENT_CENTER, RESULTS_RIBBON_RECT.size.x)
     for slot in range(3):
@@ -847,8 +855,8 @@ func _draw_wood_panel(rect: Rect2, color := Color("#253d32", 0.9)) -> void:
 
 func _draw_nature_heading(rect: Rect2, label: String) -> void:
     _draw_wood_panel(rect, Color("#704229", 0.98))
-    _draw_leaf(rect.position + Vector2(55.0, rect.size.y * 0.5), Color("#769b53"), 0.9, -0.55)
-    _draw_leaf(rect.end - Vector2(55.0, rect.size.y * 0.5), Color("#d2893f"), 0.9, 0.55)
+    _draw_ui_leaf(ui_leaf_green_texture, rect.position + Vector2(58.0, rect.size.y * 0.5), UI_LEAF_HEADING_SIZE, -0.55)
+    _draw_ui_leaf(ui_leaf_amber_texture, rect.end - Vector2(58.0, rect.size.y * 0.5), UI_LEAF_HEADING_SIZE, 0.55)
     _text(label, Vector2(rect.position.x, rect.position.y + 115.0), 58, Color("#fff3b7"), HORIZONTAL_ALIGNMENT_CENTER, rect.size.x)
 
 func _draw_tree_ring(center: Vector2, radius: float) -> void:
@@ -866,11 +874,13 @@ func _draw_tree_ring(center: Vector2, radius: float) -> void:
         var to := center + Vector2(cos(angle), sin(angle)) * (radius + 15.0)
         draw_line(from, to, Color("#6d4129", 0.88), 7.0)
 
-func _draw_leaf(center: Vector2, color: Color, scale: float, rotation: float) -> void:
-    var points := PackedVector2Array([Vector2(-26, 0), Vector2(-4, -19), Vector2(31, -5), Vector2(39, 7), Vector2(4, 20), Vector2(-22, 13)])
-    draw_set_transform(center, rotation, Vector2.ONE * scale)
-    draw_colored_polygon(points, color)
-    draw_line(Vector2(-21, 7), Vector2(28, -2), Color("#f7d99a", 0.45), 2.0)
+func _draw_ui_leaf(texture: Texture2D, center: Vector2, size: float, rotation: float) -> void:
+    if texture == null:
+        return
+    var aspect := float(texture.get_width()) / maxf(1.0, float(texture.get_height()))
+    var leaf_size := Vector2(size * aspect, size)
+    draw_set_transform(center, rotation)
+    draw_texture_rect(texture, Rect2(-leaf_size * 0.5, leaf_size), false)
     draw_set_transform(Vector2.ZERO)
 
 func _draw_leaf_button(rect: Rect2, label: String, enabled: bool, color: Color) -> void:
@@ -881,8 +891,8 @@ func _draw_leaf_button(rect: Rect2, label: String, enabled: bool, color: Color) 
         var plaque_width := minf(rect.size.x - 16.0, plaque_height * float(leaf_button_texture.get_width()) / float(leaf_button_texture.get_height()))
         var plaque_rect := Rect2(rect.get_center() - Vector2(plaque_width, plaque_height) * 0.5, Vector2(plaque_width, plaque_height))
         draw_texture_rect(leaf_button_texture, plaque_rect, false, Color(1.0, 1.0, 1.0, 0.9 if enabled else 0.42))
-    _draw_leaf(rect.position + Vector2(31.0, rect.size.y * 0.5), Color("#d8ae55"), 0.55, -0.55)
-    _draw_leaf(rect.end - Vector2(31.0, rect.size.y * 0.5), Color("#e1bd63"), 0.55, 0.55)
+    _draw_ui_leaf(ui_leaf_green_texture, rect.position + Vector2(36.0, rect.size.y * 0.5), UI_LEAF_BUTTON_SIZE, -0.55)
+    _draw_ui_leaf(ui_leaf_amber_texture, rect.end - Vector2(36.0, rect.size.y * 0.5), UI_LEAF_BUTTON_SIZE, 0.55)
     _text(label, Vector2(rect.position.x, rect.position.y + rect.size.y * 0.66), 29, Color.WHITE if enabled else Color("#d3d8ce"), HORIZONTAL_ALIGNMENT_CENTER, rect.size.x)
 
 func _draw_goal() -> void:
@@ -944,7 +954,7 @@ func _draw_settings_gear(center: Vector2, radius: float) -> void:
     draw_circle(center, radius, Color("#6f472d", 0.95))
     draw_circle(center, radius * 0.72, Color("#d79b56", 0.92))
     draw_circle(center, radius * 0.42, Color("#3f6946"))
-    _draw_leaf(center + Vector2(-radius * 0.56, -radius * 0.34), Color("#7d9e54"), 0.35, -0.55)
+    _draw_ui_leaf(ui_leaf_green_texture, center + Vector2(-radius * 0.56, -radius * 0.34), UI_LEAF_GEAR_SIZE, -0.55)
 
 func _draw_textured_medallion(center: Vector2, radius: float, unlocked: bool, completed: bool) -> void:
     draw_circle(center, radius, Color("#8d5a33", 0.78) if unlocked else Color("#45514b", 0.92))

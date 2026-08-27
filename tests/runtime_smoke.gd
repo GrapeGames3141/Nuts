@@ -21,6 +21,8 @@ func _init() -> void:
     assert(ResourceLoader.exists("res://assets/art/ui_textures/moss_panel_tile_v1.png"))
     assert(ResourceLoader.exists("res://assets/art/ui_textures/leaf_button_plaque_v1.png"))
     scene.screen = "title"
+    assert(ResourceLoader.exists("res://assets/art/ui_textures/ui_leaf_green_v1.png"))
+    assert(ResourceLoader.exists("res://assets/art/ui_textures/ui_leaf_amber_v1.png"))
     scene._process(0.0)
     assert(scene.title_squirrel != null and scene.title_squirrel.visible and not scene.squirrel.visible)
     assert(scene.title_squirrel.texture == scene.title_squirrel_texture)
@@ -32,6 +34,11 @@ func _init() -> void:
     assert(title_visual.position.y >= scene.SAFE_TOP and title_visual.end.y <= scene.H)
     assert(scene.bark_texture != null and scene.moss_texture != null and scene.leaf_button_texture != null)
     var title_tap := InputEventScreenTouch.new()
+    assert(scene.ui_leaf_green_texture != null and scene.ui_leaf_amber_texture != null)
+    assert(scene.ui_leaf_green_texture.get_width() > 0 and scene.ui_leaf_green_texture.get_height() > 0)
+    assert(scene.ui_leaf_amber_texture.get_width() > 0 and scene.ui_leaf_amber_texture.get_height() > 0)
+    var game_source := FileAccess.get_file_as_string("res://scripts/game.gd")
+    assert(not game_source.contains("func _draw_leaf("))
     title_tap.pressed = true
     title_tap.position = Vector2(540.0, 960.0)
     scene._unhandled_input(title_tap)
