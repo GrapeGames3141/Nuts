@@ -7,8 +7,8 @@ const NutsProceduralAudio = preload("res://scripts/procedural_audio.gd")
 const W := 1080.0
 const H := 1920.0
 const PLAY_RIGHT := 800.0
-const FLOOR_Y := 1510.0
-const GROUND_LINE_Y := FLOOR_Y + 85.0
+const FLOOR_Y := H - 175.0
+const GROUND_LINE_Y := H - 90.0
 const SQUIRREL_BASE_SCALE := 0.52
 # At 0.52 scale, this preserves the same visual foot contact on the ground line.
 const SQUIRREL_FOOT_OFFSET := 35.45
@@ -23,6 +23,7 @@ const POP_RECOVERY_SECONDS := 0.55
 const LANE_X := [105.0, 270.0, 435.0, 600.0, 765.0]
 const ACORN_COLORS := [Color("#bb7136"), Color("#c94838"), Color("#8064a8"), Color("#e3ae35")]
 const ACORN_NAMES := ["Oak", "Redcap", "Striped", "Gold"]
+const PINECONE_NAMES := ["Ponderosa", "Sugar Pine", "Spruce", "Fir"]
 
 var screen := "title"
 var level_number := 1
@@ -39,6 +40,10 @@ var player_target_x := player_x
 var squirrel: AnimatedSprite2D
 var sheet: Texture2D
 var background: Texture2D
+var trail_background: Texture2D
+var item_textures: Dictionary = {}
+var hazard_texture: Texture2D
+var leaf_texture: Texture2D
 var save_data := {"version": 1, "unlocked": 1, "ratings": {}, "music": true, "sfx": true, "haptics": true}
 var paused := false
 var recover_phase := 0
@@ -54,6 +59,13 @@ var idle_time := 0.0
 func _ready() -> void:
     rng.seed = 84519
     background = load("res://assets/art/forest_background.png")
+    trail_background = load("res://assets/art/seasonal/tree_trail.png")
+    item_textures = {
+        "acorn": load("res://assets/art/items/acorn_strip.png"),
+        "pinecone": load("res://assets/art/items/pinecone_strip.png")
+    }
+    hazard_texture = load("res://assets/art/items/seasonal_hazards.png")
+    leaf_texture = load("res://assets/art/items/leaf_strip.png")
     _load_save()
     _make_squirrel()
     _make_audio()
@@ -108,10 +120,13 @@ func _sheet_frame(index: int) -> Texture2D:
     var atlas := AtlasTexture.new()
     atlas.atlas = sheet
     var cell := Vector2i(sheet.get_width() / 4, sheet.get_height() / 3)
-    atlas.region = Rect2i((index % 4) * cell.x, (index / 4) * cell.y, cell.x, cell.y)
+    var row := index / 4
+    # The generated recovery row has extra ear/headroom above the normal cell boundary.
+    atlas.region = Rect2i((index % 4) * cell.x, row * cell.y - (28 if row == 2 else 0), cell.x, cell.y + (28 if row == 2 else 0))
     return atlas
 
 func _process(delta: float) -> void:
+    squirrel.visible = screen == "play" or screen == "recover"
     if status_time > 0.0:
         status_time -= delta
     if screen == "play" and not paused:
@@ -198,7 +213,7 @@ func _move_drop(drop: Dictionary, delta: float) -> void:
 func _spawn_event(event: Dictionary) -> void:
     var lane: int = event.lane
     var base_x: float = LANE_X[lane]
-    var drop := {"kind": event.kind, "variant": event.variant, "lane": lane, "base_x": base_x, "x": base_x,
+    var drop := {"kind": event.kind, "family": event.get("family", definition.theme.family), "skin": event.get("skin", ""), "variant": event.variant, "lane": lane, "base_x": base_x, "x": base_x,
         "y": -120.0, "speed": float(event.speed), "rotation": 0.0, "wobble": rng.randf_range(-0.45, 0.45),
         "seed": rng.randf_range(0.0, 9.0), "age": 0.0, "scale": 1.0, "bob": 0.0,
         "phase": "warning", "warning": float(event.get("warning", 0.0)), "width": int(event.get("width", 1)), "shadow": 0.0}
@@ -213,7 +228,7 @@ func _ensure_next_target() -> void:
             return
     # A missed required acorn is harmless: produce an unambiguous replacement.
     if event_cursor >= events.size() and elapsed > 0.75:
-        _spawn_event({"kind": "acorn", "variant": wanted, "lane": _replacement_lane(), "speed": definition.base_speed, "warning": 0.0})
+        _spawn_event({"kind": "acorn", "family": definition.theme.family, "variant": wanted, "lane": _replacement_lane(), "speed": definition.base_speed, "warning": 0.0})
         elapsed = -2.5
 
 func _replacement_lane() -> int:
@@ -238,7 +253,7 @@ func _catch(drop: Dictionary) -> void:
     var outcome := logic.catch_object(drop.kind, drop.variant)
     if outcome == "correct":
         _play_sfx("catch")
-        _feedback("Nice! " + ACORN_NAMES[drop.variant], Color("#fff3bd"))
+        _feedback("Nice! " + _item_name(drop.variant), Color("#fff3bd"))
         _spark(Vector2(drop.x, FLOOR_Y), ACORN_COLORS[drop.variant], 10)
         _haptic(18)
     elif outcome == "complete":
@@ -285,6 +300,7 @@ func _finish_level() -> void:
 func _start_level(number: int) -> void:
     level_number = number
     definition = LevelData.make(number, 7000 + number * 31)
+    background = _background_for(str(definition.theme.background))
     logic.begin(definition.recipe, 7000 + number * 31)
     events = definition.events
     drops.clear()
@@ -351,6 +367,19 @@ func _set_lane(next_lane: int) -> void:
     player_lane = clampi(next_lane, 0, 4)
     player_target_x = LANE_X[player_lane]
 
+func _item_name(variant: int) -> String:
+    return PINECONE_NAMES[variant] if definition.get("theme", {}).get("family", "acorn") == "pinecone" else ACORN_NAMES[variant]
+
+func _background_for(background_id: String) -> Texture2D:
+    var paths := {
+        "spring_oak": "res://assets/art/seasonal/spring_oak.png",
+        "summer_oak": "res://assets/art/forest_background.png",
+        "autumn_oak": "res://assets/art/seasonal/autumn_oak.png",
+        "pine_grove": "res://assets/art/seasonal/pine_grove.png",
+        "winter_pine": "res://assets/art/seasonal/winter_pine.png"
+    }
+    return load(paths.get(background_id, paths.summer_oak))
+
 func _reset_squirrel_visual() -> void:
     idle_time = 0.0
     squirrel.position = Vector2(player_x, SQUIRREL_Y)
@@ -410,12 +439,13 @@ func _map_click(point: Vector2) -> void:
             return
 
 func _map_node_position(number: int) -> Vector2:
-    var row := (number - 1) / 2
-    return Vector2(220.0 if number % 2 == 1 else 640.0, 440.0 + row * 245.0)
+    var index := number - 1
+    return Vector2(245.0 if number % 2 == 1 else 700.0, 1600.0 - index * 140.0)
 
 func _draw() -> void:
-    if background != null:
-        draw_texture_rect(background, Rect2(0, 0, W, H), false, Color(1,1,1,0.62))
+    var page_background := trail_background if screen == "map" and trail_background != null else background
+    if page_background != null:
+        draw_texture_rect(page_background, Rect2(0, 0, W, H), false, Color(1,1,1,0.72))
     draw_rect(Rect2(0,0,W,H), Color("#173f37", 0.32))
     if screen == "title": _draw_title()
     elif screen == "map": _draw_map()
@@ -451,21 +481,32 @@ func _draw_title() -> void:
     _text("A woodland pocket game", Vector2(0, 1100), 25, Color("#d5e6ca"), HORIZONTAL_ALIGNMENT_CENTER, W)
 
 func _draw_map() -> void:
-    _panel(Rect2(60, 70, 960, 145))
+    _panel(Rect2(55, 45, 970, 130), Color("#234238", 0.9))
     _text("TREE TRAIL", Vector2(95, 168), 62, Color("#fff0ac"))
-    _text("Progress is saved", Vector2(620, 150), 28, Color("#d7e9cc"))
+    _text("ROOTS TO CROWN", Vector2(615, 145), 26, Color("#d7e9cc"))
     _panel(Rect2(880, 92, 105, 90), Color("#6f8c70"))
     _text("...", Vector2(906, 151), 44)
+    for n in range(1, 10):
+        var from := _map_node_position(n)
+        var to := _map_node_position(n + 1)
+        var bend := Vector2((from.x + to.x) * 0.5, (from.y + to.y) * 0.5 + 22.0)
+        draw_polyline(PackedVector2Array([from, bend, to]), Color("#68462f", 0.92), 24, true)
+        draw_polyline(PackedVector2Array([from, bend, to]), Color("#b77c43", 0.8), 9, true)
     for n in range(1, 11):
         var p := _map_node_position(n)
         var unlocked := n <= int(save_data.unlocked)
-        draw_circle(p, 72, Color("#d08b42") if unlocked else Color("#526358"))
-        draw_arc(p, 72, 0, TAU, 32, Color("#fff0b4", 0.7), 5)
+        var completed := int(save_data.ratings.get(str(n), 0)) > 0
+        draw_circle(p, 76, Color("#8d5a33") if unlocked else Color("#45514b"))
+        draw_circle(p, 61, Color("#d9a15c") if completed else Color("#b57842") if unlocked else Color("#69746c"))
+        draw_arc(p, 76, 0, TAU, 32, Color("#fff0b4", 0.78), 5)
+        if n == int(save_data.unlocked):
+            draw_arc(p, 91 + sin(elapsed * 4.0) * 5.0, 0, TAU, 32, Color("#fff3a8", 0.9), 5)
         _text(str(n), p + Vector2(-17, 17), 48, Color.WHITE)
         var stars := int(save_data.ratings.get(str(n), 0))
-        _text("o".repeat(stars) + "-".repeat(3-stars), p + Vector2(-42, 118), 27, Color("#ffe69a"))
-        _text(LevelData.NAMES[n-1], p + Vector2(-105, -95), 25, Color("#f6f2ce"), HORIZONTAL_ALIGNMENT_CENTER, 210)
-    _text("Complete a level to grow to the next branch.", Vector2(0, 1770), 29, Color("#eef1d7"), HORIZONTAL_ALIGNMENT_CENTER, W)
+        for slot in range(3):
+            _draw_collectible(p + Vector2(-38 + slot * 38, 105), 0.0, slot, 0.25, "acorn", slot >= stars)
+        _text(LevelData.NAMES[n-1], p + Vector2(-105, -91), 23, Color("#f6f2ce"), HORIZONTAL_ALIGNMENT_CENTER, 210)
+    _text("Follow the branches from the roots to the crown.", Vector2(0, 1815), 26, Color("#eef1d7"), HORIZONTAL_ALIGNMENT_CENTER, W)
 
 func _draw_settings() -> void:
     _panel(Rect2(105, 420, 870, 760))
@@ -489,6 +530,8 @@ func _draw_results() -> void:
 func _draw_game() -> void:
     for x in LANE_X:
         draw_line(Vector2(x, 250), Vector2(x, FLOOR_Y+75), Color("#e2d894",0.18), 3)
+    if bool(definition.get("theme", {}).get("ambient", false)):
+        _draw_ambient_snow()
     _draw_goal()
     _panel(Rect2(38, 34, 505, 94), Color("#244338",0.88))
     _text("LEVEL %d  %s" % [level_number, definition.name], Vector2(65, 96), 31, Color("#fff0b0"))
@@ -499,6 +542,7 @@ func _draw_game() -> void:
     for particle in particles:
         draw_circle(particle.p, 7.0 * particle.life + 2.0, particle.color)
     draw_line(Vector2(55,GROUND_LINE_Y), Vector2(PLAY_RIGHT,GROUND_LINE_Y), Color("#6a4a31"), 12)
+    _draw_held_stack()
     if status_time > 0.0:
         _panel(Rect2(80, 1290, 700, 90), Color("#315443",0.93))
         _text(status_text, Vector2(105, 1350), 35, Color("#fff5cc"), HORIZONTAL_ALIGNMENT_CENTER, 650)
@@ -509,6 +553,12 @@ func _draw_game() -> void:
         _draw_button(Rect2(230, 920, 620, 86), "RETRY", true)
         _draw_button(Rect2(230, 1025, 620, 86), "TREE TRAIL", true)
 
+func _draw_ambient_snow() -> void:
+    for i in 28:
+        var x := fmod(float(i * 137) + elapsed * (18.0 + i % 4 * 7.0), PLAY_RIGHT)
+        var y := fmod(float(i * 83) + elapsed * (55.0 + i % 5 * 8.0), H)
+        draw_circle(Vector2(x, y), 2.0 + i % 3, Color("#eaf7ff", 0.72))
+
 func _draw_button(rect: Rect2, label: String, enabled: bool) -> void:
     _panel(rect, Color("#c87538", 0.97) if enabled else Color("#596257", 0.92))
     _text(label, Vector2(rect.position.x, rect.position.y + rect.size.y * 0.67), 29, Color.WHITE, HORIZONTAL_ALIGNMENT_CENTER, rect.size.x)
@@ -516,15 +566,20 @@ func _draw_button(rect: Rect2, label: String, enabled: bool) -> void:
 func _draw_goal() -> void:
     _panel(Rect2(824, 235, 228, 790), Color("#244239",0.93))
     _text("GOAL", Vector2(850, 292), 36, Color("#fff0aa"))
-    _text("BOTTOM", Vector2(850, 332), 20, Color("#bed7bc"))
     for i in logic.recipe.size():
         var y := 920.0 - i * 125.0
         var state := "held" if i < logic.progress else "current" if i == logic.progress else "waiting"
-        var c: Color = Color("#727d72") if state == "held" else ACORN_COLORS[logic.recipe[i]]
         if state == "current": draw_circle(Vector2(938,y), 56 + sin(elapsed*5.0)*5.0, Color("#fff2a8",0.24))
-        _draw_acorn(Vector2(938,y), 0.0, c, logic.recipe[i], 0.72)
+        _draw_collectible(Vector2(938,y), 0.0, logic.recipe[i], 0.72, str(definition.get("theme", {}).get("family", "acorn")), state == "held")
         _text(str(i+1), Vector2(850,y+12), 25, Color.WHITE)
     _text("FIRST", Vector2(850, 973), 20, Color("#bed7bc"))
+
+func _draw_held_stack() -> void:
+    var family := str(definition.get("theme", {}).get("family", "acorn"))
+    for i in logic.progress:
+        var wobble := sin(elapsed * 5.0 + i * 1.7) * 0.11
+        var offset := Vector2((i % 2) * 18.0 - 9.0, -48.0 - i * 42.0)
+        _draw_collectible(Vector2(player_x, SQUIRREL_Y) + offset, wobble, logic.recipe[i], 0.48, family, false)
 
 func _draw_drop(drop: Dictionary) -> void:
     if drop.kind == "limb":
@@ -534,19 +589,39 @@ func _draw_drop(drop: Dictionary) -> void:
             draw_arc(Vector2(drop.base_x, FLOOR_Y+55), shadow_w, 0, TAU, 20, Color("#ffd66b", drop.shadow), 5)
             _text("RUSTLE!", Vector2(drop.base_x-72, FLOOR_Y-155), 24, Color("#ffe998"))
         else:
-            draw_set_transform(Vector2(drop.x, drop.y), drop.rotation, Vector2.ONE)
-            draw_rect(Rect2(-65*drop.width,-24,130*drop.width,48), Color("#70452c"))
-            draw_circle(Vector2(-52*drop.width,0), 30, Color("#a36a3c"))
-            draw_circle(Vector2(52*drop.width,0), 30, Color("#9c6138"))
-            draw_set_transform(Vector2.ZERO)
+            _draw_hazard(Vector2(drop.x, drop.y), drop.rotation, str(drop.skin), drop.variant, 1.35 * drop.width)
     elif drop.kind == "leaf":
-        draw_set_transform(Vector2(drop.x, drop.y), drop.rotation, Vector2(drop.scale,drop.scale))
-        var leaf := PackedVector2Array([Vector2(0,-42),Vector2(30,-5),Vector2(0,42),Vector2(-30,-5)])
-        draw_colored_polygon(leaf, Color("#d57136"))
-        draw_line(Vector2(0,-35),Vector2(0,40),Color("#774e2d"),4)
-        draw_set_transform(Vector2.ZERO)
+        _draw_hazard(Vector2(drop.x, drop.y), drop.rotation, str(drop.skin), drop.variant, drop.scale)
     else:
-        _draw_acorn(Vector2(drop.x, drop.y + drop.bob), drop.rotation, ACORN_COLORS[drop.variant], drop.variant, 1.0)
+        _draw_collectible(Vector2(drop.x, drop.y + drop.bob), drop.rotation, drop.variant, 1.0, str(drop.family), false)
+
+func _draw_collectible(center: Vector2, rotation: float, variant: int, scale: float, family: String, dimmed: bool) -> void:
+    var texture: Texture2D = item_textures.get(family)
+    if texture == null:
+        _draw_acorn(center, rotation, Color("#727d72") if dimmed else ACORN_COLORS[variant], variant, scale)
+        return
+    var cell_width := texture.get_width() / 4
+    draw_set_transform(center, rotation, Vector2.ONE * scale)
+    var color := Color(0.42, 0.46, 0.42, 0.85) if dimmed else Color.WHITE
+    draw_texture_rect_region(texture, Rect2(-72, -72, 144, 144), Rect2(variant * cell_width, 0, cell_width, texture.get_height()), color)
+    draw_set_transform(Vector2.ZERO)
+
+func _draw_hazard(center: Vector2, rotation: float, skin: String, variant: int, scale: float) -> void:
+    var texture := leaf_texture if skin == "leaf" else hazard_texture
+    if texture == null:
+        _draw_acorn(center, rotation, Color("#d57136"), 0, scale)
+        return
+    var source: Rect2
+    if skin == "leaf":
+        var leaf_width := texture.get_width() / 4
+        source = Rect2((variant % 4) * leaf_width, 0, leaf_width, texture.get_height())
+    else:
+        var hazard_index := 1 if skin == "stick" or skin == "branch" else 2 if skin == "snowflake" else 3
+        var cell := Vector2(texture.get_width() / 2, texture.get_height() / 2)
+        source = Rect2((hazard_index % 2) * cell.x, (hazard_index / 2) * cell.y, cell.x, cell.y)
+    draw_set_transform(center, rotation, Vector2.ONE * scale)
+    draw_texture_rect_region(texture, Rect2(-78, -78, 156, 156), source)
+    draw_set_transform(Vector2.ZERO)
 
 func _draw_acorn(center: Vector2, rotation: float, color: Color, variant: int, scale: float) -> void:
     draw_set_transform(center, rotation, Vector2(scale,scale))

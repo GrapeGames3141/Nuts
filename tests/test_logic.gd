@@ -32,6 +32,13 @@ func _init() -> void:
         var d := LevelData.make(level, 1234)
         expect(d.recipe.size() == expected, "level %d recipe" % level)
         expect(LevelData.validate(d), "level %d definition" % level)
+        expect(d.theme.family == LevelData.THEMES[level - 1].family, "level theme item family")
+        if level <= 2: expect(d.theme.id == "spring" and d.theme.minor == "", "spring levels have no seasonal hazard")
+        if level == 3: expect(d.theme.id == "summer" and d.theme.family == "acorn", "summer oak theme")
+        if level == 4 or level == 7: expect(d.theme.minor == "leaf", "autumn leaf theme")
+        if level >= 5 and level <= 6: expect(d.theme.family == "pinecone" and d.theme.minor == "stick", "pine stick theme")
+        if level == 8: expect(d.theme.major == "branch", "storm branch reset theme")
+        if level >= 9: expect(d.theme.family == "pinecone" and d.theme.minor == "snowflake" and d.theme.major == "icicle", "winter snow and icicle theme")
         var scheduled_arrivals: Array = []
         var no_same_lane_conflicts := true
         for event in d.events:
@@ -45,8 +52,13 @@ func _init() -> void:
                 expect(event.warning >= 1.1, "fair limb warning")
         expect(no_same_lane_conflicts, "speed-aware same-lane arrivals are separated")
         var seeds_ok := true
+        var leaf_variants := {}
         for seed in range(1,101):
+            var seeded := LevelData.make(level, seed)
             seeds_ok = seeds_ok and GameLogic.simulate_level(level, seed)
+            for event in seeded.events:
+                if event.get("skin", "") == "leaf": leaf_variants[event.variant] = true
         expect(seeds_ok, "100 deterministic seeds are solvable")
+        if level == 4 or level == 7 or level == 8: expect(leaf_variants.size() == 4, "all four generated leaf variants appear across seeds")
     print("TEST_FAILURES=", failures)
     quit(1 if failures > 0 else 0)

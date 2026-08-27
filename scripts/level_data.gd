@@ -8,9 +8,21 @@ const RECIPES := [
     [0, 2, 3, 1, 0], [3, 1, 0, 2, 1], [1, 3, 2, 0, 3]
 ]
 const NAMES := ["First Nuts", "Three's Company", "Quick Branches", "Leaf Lesson", "Cap Shuffle", "Breezy Bunch", "Busy Bough", "Timber!", "Canopy Dash", "Nuts! Master"]
-const SPAWN_TO_CATCH_DISTANCE := 1630.0
+const SPAWN_TO_CATCH_DISTANCE := 1865.0
 const EARLY_ACORN_ARRIVAL_SAFETY_SECONDS := 1.15
 const LATE_ACORN_ARRIVAL_SAFETY_SECONDS := 0.65
+const THEMES := [
+    {"id":"spring", "background":"spring_oak", "family":"acorn", "minor":"", "major":"", "ambient":false},
+    {"id":"spring", "background":"spring_oak", "family":"acorn", "minor":"", "major":"", "ambient":false},
+    {"id":"summer", "background":"summer_oak", "family":"acorn", "minor":"", "major":"", "ambient":false},
+    {"id":"autumn", "background":"autumn_oak", "family":"acorn", "minor":"leaf", "major":"", "ambient":false},
+    {"id":"pine", "background":"pine_grove", "family":"pinecone", "minor":"stick", "major":"", "ambient":false},
+    {"id":"pine", "background":"pine_grove", "family":"pinecone", "minor":"stick", "major":"", "ambient":false},
+    {"id":"autumn", "background":"autumn_oak", "family":"acorn", "minor":"leaf", "major":"", "ambient":false},
+    {"id":"storm", "background":"autumn_oak", "family":"acorn", "minor":"leaf", "major":"branch", "ambient":false},
+    {"id":"winter", "background":"winter_pine", "family":"pinecone", "minor":"snowflake", "major":"icicle", "ambient":true},
+    {"id":"winter_night", "background":"winter_pine", "family":"pinecone", "minor":"snowflake", "major":"icicle", "ambient":true}
+]
 
 static func make(level_number: int, seed: int = 1) -> Dictionary:
     var i := clampi(level_number - 1, 0, 9)
@@ -20,7 +32,7 @@ static func make(level_number: int, seed: int = 1) -> Dictionary:
     var result := {
         "number": level_number, "name": NAMES[i], "recipe": RECIPES[i].duplicate(),
         "base_speed": speed, "speed_range": 24.0 + i * 8.0,
-        "leaves": level_number >= 4, "limbs": level_number >= 8,
+        "theme": THEMES[i].duplicate(), "leaves": THEMES[i].minor != "", "limbs": THEMES[i].major != "",
         "tutorial": level_number == 1, "events": []
     }
     var scheduled_acorns: Array = []
@@ -29,7 +41,7 @@ static func make(level_number: int, seed: int = 1) -> Dictionary:
     for target in RECIPES[i]:
         var target_speed := speed + rng.randf_range(-18.0, 18.0)
         var target_lane := choose_acorn_lane(rng, scheduled_acorns, t, target_speed, -1, 0, arrival_window)
-        result.events.append({"time": t, "kind": "acorn", "variant": target, "target": true,
+        result.events.append({"time": t, "kind": "acorn", "family": result.theme.family, "variant": target, "target": true,
             "lane": target_lane, "speed": target_speed})
         scheduled_acorns.append({"lane": target_lane, "arrival": acorn_arrival_time(t, target_speed)})
         # Decoys vary by seed but never share a prohibited catch-zone arrival with an acorn.
@@ -38,14 +50,14 @@ static func make(level_number: int, seed: int = 1) -> Dictionary:
             var decoy_speed := speed + rng.randf_range(-35.0, 35.0)
             var decoy_lane := choose_acorn_lane(rng, scheduled_acorns, decoy_time, decoy_speed,
                 target_lane, 1 if level_number <= 5 else 0, arrival_window)
-            result.events.append({"time": t + 0.72, "kind": "acorn", "variant": (target + rng.randi_range(1, 3)) % 4,
+            result.events.append({"time": t + 0.72, "kind": "acorn", "family": result.theme.family, "variant": (target + rng.randi_range(1, 3)) % 4,
                 "target": false, "lane": decoy_lane, "speed": decoy_speed})
             scheduled_acorns.append({"lane": decoy_lane, "arrival": acorn_arrival_time(decoy_time, decoy_speed)})
-        if level_number >= 4 and int(t * 10.0) % 2 == 0:
-            result.events.append({"time": t + 1.05, "kind": "leaf", "variant": -1, "target": false,
+        if result.theme.minor != "" and int(t * 10.0) % 2 == 0:
+            result.events.append({"time": t + 1.05, "kind": "leaf", "skin": result.theme.minor, "variant": rng.randi_range(0, 3), "target": false,
                 "lane": rng.randi_range(0, 4), "speed": speed * 0.72})
-        if level_number >= 8 and int(t * 10.0) % 3 == 0:
-            result.events.append({"time": t - 0.65, "kind": "limb", "variant": -1, "target": false,
+        if result.theme.major != "" and int(t * 10.0) % 3 == 0:
+            result.events.append({"time": t - 0.65, "kind": "limb", "skin": result.theme.major, "variant": -1, "target": false,
                 "lane": rng.randi_range(0, 4), "width": 1 if level_number < 10 else rng.randi_range(1, 2),
                 "warning": 1.35, "speed": speed * 0.80})
         t += maxf(2.35, 3.6 - i * 0.08)
