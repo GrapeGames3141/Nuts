@@ -247,7 +247,7 @@ func _init() -> void:
         scene._start_level(n)
         assert(scene.logic.recipe.size() == (3 if n <= 3 else 4 if n <= 7 else 5))
     scene._start_level(99)
-    assert(scene.level_number == 20 and scene.definition.number == 20)
+    assert(scene.level_number == 50 and scene.definition.number == 50)
     scene.screen = "title"
     scene._process(0.0)
     assert(scene.title_squirrel.visible and not scene.squirrel.visible)
@@ -295,6 +295,135 @@ func _init() -> void:
     scene.logic.progress = scene.logic.recipe.size()
     scene._finish_level()
     scene._results_click(scene.RESULTS_BUTTON_RECTS[0].get_center())
-    assert(scene.screen == "results" and scene.level_number == 20)
+    assert(scene.screen == "play" and scene.level_number == 21)
+
+    # The expanded trail has five exact pages with ten reachable nodes each.
+    assert(scene.MAP_PAGE_COUNT == 5 and scene.MAP_NODE_POSITIONS.size() == 5)
+    for page_positions in scene.MAP_NODE_POSITIONS:
+        assert(page_positions.size() == scene.MAP_PAGE_LEVELS)
+    for number in range(1, 51):
+        var canopy_map_pos: Vector2 = scene._map_node_position(number)
+        assert(canopy_map_pos.x > scene.MAP_NODE_RADIUS and canopy_map_pos.x < scene.W - scene.MAP_NODE_RADIUS)
+        assert(canopy_map_pos.y > scene.SAFE_TOP + scene.MAP_NODE_RADIUS and canopy_map_pos.y < scene.H - scene.MAP_NODE_RADIUS)
+    scene.map_page = 1; scene.save_data.unlocked = 10
+    assert(not scene._map_can_navigate(1))
+    scene.save_data.unlocked = 11
+    assert(scene._map_can_navigate(1))
+    scene.map_page = 2; scene.save_data.unlocked = 20
+    assert(not scene._map_can_navigate(1) and scene._map_can_navigate(-1))
+    scene.save_data.unlocked = 21
+    assert(scene._map_can_navigate(1))
+    scene.map_page = 3; scene.save_data.unlocked = 31
+    assert(scene._map_can_navigate(1))
+    scene.map_page = 4; scene.save_data.unlocked = 41
+    assert(scene._map_can_navigate(1))
+    scene.map_page = 5; scene.save_data.unlocked = 50
+    assert(not scene._map_can_navigate(1) and scene._map_can_navigate(-1))
+
+    for canopy_level in range(21, 51):
+        scene._start_level(canopy_level)
+        assert(scene.level_number == canopy_level and scene.definition.number == canopy_level)
+        assert(scene.logic.recipe.size() == 5)
+    scene._start_level(99)
+    assert(scene.level_number == 50 and scene.definition.number == 50)
+
+    # A gust resolves once and moves only eligible collectibles one adjacent lane.
+    scene._start_level(30)
+    var gust_acorn := {"kind":"acorn", "phase":"falling", "lane":2, "base_x":scene.LANE_X[2], "x":scene.LANE_X[2]}
+    var gust_leaf := {"kind":"leaf", "phase":"falling", "lane":3, "base_x":scene.LANE_X[3], "x":scene.LANE_X[3]}
+    var gust_boundary := {"kind":"acorn", "phase":"falling", "lane":4, "base_x":scene.LANE_X[4], "x":scene.LANE_X[4]}
+    var gust_predator := {"kind":"predator", "phase":"falling", "lane":1, "base_x":scene.LANE_X[1], "x":scene.LANE_X[1]}
+    var gust_limb := {"kind":"limb", "phase":"falling", "lane":1, "base_x":scene.LANE_X[1], "x":scene.LANE_X[1]}
+    assert(scene._gust_eligible(gust_acorn, 1) and scene._gust_eligible(gust_leaf, 1))
+    assert(not scene._gust_eligible(gust_boundary, 1) and not scene._gust_eligible(gust_predator, 1) and not scene._gust_eligible(gust_limb, 1))
+    scene.drops = [gust_acorn, gust_leaf, gust_boundary, gust_predator, gust_limb]
+    scene._resolve_gust(1)
+    assert(gust_acorn.lane == 3 and gust_leaf.lane == 4)
+    assert(gust_acorn.base_x == scene.LANE_X[3] and gust_leaf.base_x == scene.LANE_X[4])
+    assert(gust_boundary.lane == 4 and gust_predator.lane == 1 and gust_limb.lane == 1)
+    var warning_gust := {"kind":"gust", "phase":"warning", "warning":0.2, "duration":0.3, "direction":-1, "age":0.0, "y":-120.0}
+    scene.drops = [gust_acorn, warning_gust]
+    scene._move_drop(warning_gust, 0.21)
+    assert(warning_gust.phase == "active" and gust_acorn.lane == 2)
+    scene._move_drop(warning_gust, 0.1)
+    assert(gust_acorn.lane == 2)
+
+    # Predators approach visibly and swoop one immutable lane, then restart the recipe.
+    scene._start_level(35)
+    var predator := {"kind":"predator", "phase":"warning", "warning":1.4, "age":0.0, "y":-120.0, "speed":600.0,
+        "lane":2, "base_x":scene.LANE_X[2], "x":scene.LANE_X[2], "skin":"hawk"}
+    scene._move_drop(predator, 0.7)
+    assert(predator.y > -120.0 and predator.y < 220.0 and predator.lane == 2 and predator.x == scene.LANE_X[2])
+    scene._move_drop(predator, 0.71)
+    assert(predator.phase == "falling" and predator.lane == 2 and predator.x == scene.LANE_X[2])
+    scene._move_drop(predator, 0.1)
+    assert(predator.lane == 2 and predator.x == scene.LANE_X[2])
+    scene.logic.progress = 2
+    predator.y = scene._play_surface_y() - 90.0
+    assert(scene._limb_hits_player(predator))
+    scene._limb_hit(predator)
+    assert(scene.screen == "recover" and scene.logic.restarted and scene.logic.progress == 0 and scene.level_number == 35)
+    scene.recover_phase = 2; scene.recover_time = scene.POP_RECOVERY_SECONDS
+    scene._update_recovery(0.0)
+    assert(scene.screen == "play" and not scene.logic.restarted and scene.level_number == 35)
+
+    # The legacy surface is stationary; canopy limb levels sway coherently and gently.
+    scene.elapsed = 1.0
+    assert(is_equal_approx(scene._play_surface_y(), scene.GROUND_LINE_Y))
+    scene._start_level(36)
+    scene.elapsed = 0.0
+    var surface_start: float = scene._play_surface_y()
+    scene.elapsed = PI / (2.0 * 1.65)
+    var surface_peak: float = scene._play_surface_y()
+    assert(absf(surface_peak - surface_start) > 10.0 and absf(surface_peak - scene.GROUND_LINE_Y) <= 16.1)
+    scene._reset_squirrel_visual()
+    assert(is_equal_approx(scene.squirrel.position.y, surface_peak - scene.SQUIRREL_FOOT_OFFSET))
+    assert(scene.play_limb_texture != null and scene.hawk_texture != null and scene.owl_texture != null)
+    assert(scene.firefly_swarm_texture != null and scene.lightning_fx_texture != null)
+
+    # Night fireflies track the player and current required target; lightning changes visibility only.
+    scene._start_level(45)
+    assert(scene.definition.theme.night and scene.definition.theme.fireflies)
+    var lit_target := {"kind":"acorn", "variant":scene.logic.current_variant(), "lane":4}
+    scene.drops = [lit_target]
+    scene.elapsed = 0.0
+    var lights_a: Array[Vector2] = scene._firefly_centers()
+    scene.elapsed = 0.8
+    var lights_b: Array[Vector2] = scene._firefly_centers()
+    assert(lights_a.size() == 2 and lights_a[0].x >= scene.player_x - 43.0 and absf(lights_a[1].x - scene.LANE_X[4]) <= 43.0)
+    assert(lights_a != lights_b)
+    scene.elapsed = 0.0
+    var target_light_center: Vector2 = scene._firefly_centers()[1]
+    var far_dark_point := Vector2(80.0, 500.0)
+    assert(scene._night_visibility_at(target_light_center) > 0.99)
+    assert(scene._night_visibility_at(far_dark_point) <= scene.NIGHT_BASE_VISIBILITY + 0.01)
+    assert(scene._night_world_modulate(far_dark_point).r < 0.30)
+    scene.lightning_flash = 0.22
+    assert(is_equal_approx(scene._night_visibility_at(far_dark_point), 1.0))
+    scene.lightning_flash = 0.0
+    scene._start_level(50)
+    assert(scene.definition.theme.lightning and scene.definition.theme.finale_stage == 5)
+    assert(scene._finale_stage_label() == "FINALE PHASE 1 / 5")
+    scene.logic.progress = 2
+    assert(scene._finale_stage_label() == "FINALE PHASE 3 / 5")
+    var flash_collectible := {"kind":"acorn", "phase":"falling", "lane":2, "base_x":scene.LANE_X[2], "x":scene.LANE_X[2]}
+    var lightning := {"kind":"lightning", "phase":"warning", "warning":0.8, "duration":0.22, "direction":0, "age":0.0, "y":-120.0}
+    scene.drops = [flash_collectible, lightning]
+    scene.lightning_flash = 0.0
+    scene._move_drop(lightning, 0.4)
+    assert(lightning.phase == "warning" and is_zero_approx(scene.lightning_flash) and flash_collectible.lane == 2)
+    assert(scene._lightning_warning_strength() >= 0.49 and scene._lightning_warning_strength() <= 0.51)
+    scene._move_drop(lightning, 0.41)
+    assert(lightning.phase == "active" and scene.lightning_flash > 0.0 and flash_collectible.lane == 2)
+    scene._start_level(50)
+    assert(is_zero_approx(scene.lightning_flash) and scene.drops.is_empty())
+
+    scene.logic.progress = scene.logic.recipe.size()
+    scene._finish_level()
+    scene._results_click(scene.RESULTS_BUTTON_RECTS[0].get_center())
+    assert(scene.screen == "results" and scene.level_number == 50 and int(scene.save_data.unlocked) == 50)
+    scene.free()
+    packed = null
+    await process_frame
     print("RUNTIME_SMOKE_PASS")
     quit()

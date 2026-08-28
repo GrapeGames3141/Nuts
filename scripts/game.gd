@@ -23,7 +23,7 @@ const RESULTS_CARRY_SIZE := 74.0
 const RESULTS_CARRY_ANCHOR := Vector2(640.0, 795.0)
 const RESULTS_CARRY_STEP_Y := 45.0
 const MAP_PAGE_LEVELS := 10
-const MAP_PAGE_COUNT := 2
+const MAP_PAGE_COUNT := 5
 const MAP_NODE_RADIUS := 59.0
 const MAP_LABEL_GAP := 16.0
 const MAP_LABEL_SIZE := Vector2(188.0, 36.0)
@@ -32,20 +32,11 @@ const MAP_NEXT_RECT := Rect2(772.0, 228.0, 246.0, 68.0)
 # Authored positions sit on the visible roots, trunk forks and major boughs
 # in the two painted trees; there is deliberately no artificial rail overlay.
 const MAP_NODE_POSITIONS := [
-    [
-        Vector2(432.0, 1614.0), Vector2(625.0, 1490.0),
-        Vector2(445.0, 1358.0), Vector2(647.0, 1224.0),
-        Vector2(448.0, 1088.0), Vector2(636.0, 952.0),
-        Vector2(450.0, 816.0), Vector2(632.0, 682.0),
-        Vector2(466.0, 548.0), Vector2(620.0, 408.0)
-    ],
-    [
-        Vector2(430.0, 1608.0), Vector2(650.0, 1476.0),
-        Vector2(448.0, 1340.0), Vector2(660.0, 1202.0),
-        Vector2(438.0, 1060.0), Vector2(660.0, 918.0),
-        Vector2(450.0, 774.0), Vector2(665.0, 626.0),
-        Vector2(458.0, 482.0), Vector2(650.0, 360.0)
-    ]
+    [Vector2(432.0,1614.0),Vector2(625.0,1490.0),Vector2(445.0,1358.0),Vector2(647.0,1224.0),Vector2(448.0,1088.0),Vector2(636.0,952.0),Vector2(450.0,816.0),Vector2(632.0,682.0),Vector2(466.0,548.0),Vector2(620.0,408.0)],
+    [Vector2(430.0,1608.0),Vector2(650.0,1476.0),Vector2(448.0,1340.0),Vector2(660.0,1202.0),Vector2(438.0,1060.0),Vector2(660.0,918.0),Vector2(450.0,774.0),Vector2(665.0,626.0),Vector2(458.0,482.0),Vector2(650.0,360.0)],
+    [Vector2(432.0,1608.0),Vector2(620.0,1480.0),Vector2(450.0,1344.0),Vector2(640.0,1208.0),Vector2(452.0,1068.0),Vector2(632.0,930.0),Vector2(462.0,788.0),Vector2(642.0,646.0),Vector2(470.0,506.0),Vector2(630.0,370.0)],
+    [Vector2(426.0,1610.0),Vector2(642.0,1482.0),Vector2(444.0,1348.0),Vector2(654.0,1214.0),Vector2(446.0,1074.0),Vector2(650.0,938.0),Vector2(456.0,798.0),Vector2(650.0,656.0),Vector2(466.0,516.0),Vector2(640.0,378.0)],
+    [Vector2(434.0,1612.0),Vector2(630.0,1486.0),Vector2(450.0,1350.0),Vector2(646.0,1218.0),Vector2(456.0,1080.0),Vector2(638.0,944.0),Vector2(464.0,804.0),Vector2(644.0,664.0),Vector2(472.0,524.0),Vector2(634.0,386.0)]
 ]
 const PLAY_RIGHT := 800.0
 const FLOOR_Y := H - 175.0
@@ -86,6 +77,8 @@ const UI_LEAF_HEADING_SIZE := 74.0
 const UI_LEAF_BUTTON_SIZE := 42.0
 const UI_LEAF_RESULT_SIZE := 70.0
 const UI_LEAF_GEAR_SIZE := 30.0
+const NIGHT_BASE_VISIBILITY := 0.24
+const FIREFLY_LIGHT_RADIUS := 260.0
 var screen := "title"
 var level_number := 1
 var map_page := 1
@@ -108,20 +101,25 @@ var results_squirrel: Sprite2D
 var carry_sprites: Array[Sprite2D] = []
 var sheet: Texture2D
 var background: Texture2D
-var trail_background: Texture2D
-var trail_background_2: Texture2D
+var trail_backgrounds: Array[Texture2D] = []
 var item_textures: Dictionary = {}
 var hazard_texture: Texture2D
 var branch_texture: Texture2D
 var leaf_texture: Texture2D
 var yellow_leaf_texture: Texture2D
 var needle_texture: Texture2D
+var play_limb_texture: Texture2D
+var hawk_texture: Texture2D
+var owl_texture: Texture2D
+var lightning_fx_texture: Texture2D
+var firefly_swarm_texture: Texture2D
 var title_squirrel_texture: Texture2D
 var results_squirrel_texture: Texture2D
 var bark_texture: Texture2D
 var pause_log_texture: Texture2D
 var moss_texture: Texture2D
 var leaf_button_texture: Texture2D
+var lightning_flash := 0.0
 var save_data := {"version": 1, "unlocked": 1, "ratings": {}, "music": true, "sfx": true, "haptics": true}
 var ui_leaf_green_texture: Texture2D
 var ui_leaf_amber_texture: Texture2D
@@ -143,8 +141,7 @@ var mouse_left_down := false
 func _ready() -> void:
     rng.seed = 84519
     background = load("res://assets/art/forest_background.png")
-    trail_background = load("res://assets/art/seasonal/tree_trail_real_v1.png")
-    trail_background_2 = load("res://assets/art/seasonal/tree_trail_real_v2.png")
+    trail_backgrounds = [load("res://assets/art/seasonal/tree_trail_real_v1.png"), load("res://assets/art/seasonal/tree_trail_real_v2.png"), load("res://assets/art/seasonal/tree_trail_real_v3.png"), load("res://assets/art/seasonal/tree_trail_real_v4.png"), load("res://assets/art/seasonal/tree_trail_real_v5.png")]
     item_textures = {
         "acorn": load("res://assets/art/items/acorn_strip.png"),
         "pinecone": load("res://assets/art/items/pinecone_strip.png")
@@ -154,6 +151,11 @@ func _ready() -> void:
     leaf_texture = load("res://assets/art/items/leaf_strip.png")
     yellow_leaf_texture = load("res://assets/art/items/leaf_yellow_clean_v1.png")
     needle_texture = load("res://assets/art/items/pine_needle_cluster_v1.png")
+    play_limb_texture = load("res://assets/art/canopy/play_limb_v1.png")
+    hawk_texture = load("res://assets/art/canopy/hawk_swoop_v1.png")
+    owl_texture = load("res://assets/art/canopy/owl_swoop_v1.png")
+    lightning_fx_texture = load("res://assets/art/canopy/lightning_fx_v1.png")
+    firefly_swarm_texture = load("res://assets/art/canopy/firefly_swarm_v1.png")
     title_squirrel_texture = load("res://assets/art/squirrel_front_acorn_v1.png")
     results_squirrel_texture = load("res://assets/art/squirrel_idle_full_v2.png")
     bark_texture = load("res://assets/art/ui_textures/oak_bark_tile_v1.png")
@@ -325,6 +327,7 @@ func _apply_screen_squirrel() -> void:
         squirrel.visible = screen == "play" or screen == "recover"
 
 func _update_play(delta: float) -> void:
+    lightning_flash = maxf(0.0, lightning_flash - delta)
     elapsed += delta
     if event_cursor >= events.size():
         _queue_continuation_cycle()
@@ -344,12 +347,13 @@ func _update_play(delta: float) -> void:
         _apply_idle_visual(delta)
     for drop in drops.duplicate():
         _move_drop(drop, delta)
-        if drop.kind == "limb" and drop.phase == "falling" and _limb_hits_player(drop):
+        if (drop.kind == "limb" or drop.kind == "predator") and drop.phase == "falling" and _limb_hits_player(drop):
             _limb_hit(drop)
             return
-        if drop.kind != "limb" and drop.y > FLOOR_Y - 90.0 and drop.y < FLOOR_Y + 90.0 and absf(drop.x - player_x) < 79.0:
-            _catch(drop)
-            drops.erase(drop)
+        if drop.kind == "acorn" or drop.kind == "leaf":
+            if drop.y > _catch_y() - 90.0 and drop.y < _catch_y() + 90.0 and absf(drop.x - player_x) < 79.0:
+                _catch(drop)
+                drops.erase(drop)
         elif drop.y > H + 170.0:
             drops.erase(drop)
     _ensure_next_target()
@@ -382,6 +386,23 @@ func _update_recovery(delta: float) -> void:
 
 func _move_drop(drop: Dictionary, delta: float) -> void:
     drop.age += delta
+    if drop.kind == "gust":
+        if drop.phase == "warning" and drop.age >= drop.warning:
+            _resolve_gust(int(drop.direction)); drop.phase = "active"; drop.age = 0.0
+        elif drop.phase == "active" and drop.age >= drop.duration: drop.y = H + 200.0
+        return
+    if drop.kind == "lightning":
+        if drop.phase == "warning" and drop.age >= drop.warning:
+            lightning_flash = drop.duration; drop.phase = "active"; drop.age = 0.0
+        elif drop.phase == "active" and drop.age >= drop.duration: drop.y = H + 200.0
+        return
+    if drop.kind == "predator":
+        if drop.phase == "warning":
+            drop.y = lerpf(-120.0, 220.0, clampf(drop.age / drop.warning, 0.0, 1.0))
+            drop.x = drop.base_x
+            if drop.age >= drop.warning: drop.phase = "falling"; drop.age = 0.0
+        elif drop.phase == "falling": drop.y += drop.speed * delta
+        return
     if drop.kind == "limb":
         if drop.phase == "warning":
             drop.shadow = minf(1.0, drop.age / drop.warning)
@@ -411,14 +432,36 @@ func _move_drop(drop: Dictionary, delta: float) -> void:
         drop.bob = sin(drop.age * 4.4 + drop.seed) * 5.0
 
 func _spawn_event(event: Dictionary) -> void:
+    if event.kind == "gust" or event.kind == "lightning":
+        drops.append({"kind":event.kind, "phase":"warning", "warning":float(event.warning), "duration":float(event.duration), "direction":int(event.get("direction", 0)), "age":0.0, "y":-120.0})
+        return
     var lane: int = event.lane
     var base_x: float = LANE_X[lane]
-    var drop := {"kind": event.kind, "family": event.get("family", definition.theme.family), "skin": event.get("skin", ""), "variant": event.variant, "lane": lane, "base_x": base_x, "x": base_x,
+    var drop := {"kind": event.kind, "family": event.get("family", definition.theme.family), "skin": event.get("skin", ""), "variant": int(event.get("variant", -1)), "lane": lane, "base_x": base_x, "x": base_x,
         "y": -120.0, "speed": float(event.speed), "rotation": 0.0, "wobble": rng.randf_range(-0.45, 0.45),
         "seed": rng.randf_range(0.0, 9.0), "age": 0.0, "scale": 1.0, "bob": 0.0,
         "phase": "warning", "warning": float(event.get("warning", 0.0)), "width": int(event.get("width", 1)), "shadow": 0.0}
-    if drop.kind != "limb": drop.phase = "falling"
+    if drop.kind != "limb" and drop.kind != "predator": drop.phase = "falling"
     drops.append(drop)
+
+func _resolve_gust(direction: int) -> void:
+    for falling in drops:
+        if not _gust_eligible(falling, direction):
+            continue
+        var next_lane := int(falling.lane) + direction
+        falling.lane = next_lane
+        falling.base_x = LANE_X[next_lane]
+        falling.x = falling.base_x
+
+func _gust_eligible(drop: Dictionary, direction: int) -> bool:
+    if abs(direction) != 1:
+        return false
+    if str(drop.get("kind", "")) != "acorn" and str(drop.get("kind", "")) != "leaf":
+        return false
+    if str(drop.get("phase", "falling")) != "falling":
+        return false
+    var next_lane := int(drop.get("lane", -1)) + direction
+    return next_lane >= 0 and next_lane < LANE_X.size()
 
 func _ensure_next_target() -> void:
     # Every authored cycle contains the complete recipe mix. Missing anything
@@ -454,7 +497,7 @@ func _replacement_lane() -> int:
         for drop in drops:
             if drop.kind != "acorn" or drop.lane != lane:
                 continue
-            var active_eta := maxf(0.0, (FLOOR_Y - float(drop.y)) / maxf(1.0, float(drop.speed)))
+            var active_eta := maxf(0.0, (_catch_y() - float(drop.y)) / maxf(1.0, float(drop.speed)))
             if absf(active_eta - replacement_eta) < window:
                 clear = false
                 break
@@ -467,7 +510,7 @@ func _catch(drop: Dictionary) -> void:
     if outcome == "correct":
         _play_sfx("catch")
         _feedback("Nice! " + _item_name(drop.variant), Color("#fff3bd"))
-        _spark(Vector2(drop.x, FLOOR_Y), ACORN_COLORS[drop.variant], 10)
+        _spark(Vector2(drop.x, _catch_y()), ACORN_COLORS[drop.variant], 10)
         _haptic(18)
     elif outcome == "complete":
         _play_sfx("catch")
@@ -475,15 +518,15 @@ func _catch(drop: Dictionary) -> void:
     elif outcome == "wrong":
         _play_sfx("wrong")
         _feedback("Oops - one nut slipped away", Color("#ffd1ae"))
-        _spark(Vector2(drop.x, FLOOR_Y), Color("#d85840"), 8)
+        _spark(Vector2(drop.x, _catch_y()), Color("#d85840"), 8)
         _haptic(45)
     _update_carry_stack()
 
 func _limb_hits_player(drop: Dictionary) -> bool:
     if str(drop.get("phase", "falling")) != "falling":
         return false
-    var half_width := 72.0 + 74.0 * float(drop.width - 1)
-    return drop.y > FLOOR_Y - 100.0 and drop.y < FLOOR_Y + 85.0 and absf(drop.x - player_x) < half_width
+    var half_width := 72.0 + 74.0 * float(int(drop.get("width", 1)) - 1)
+    return drop.y > _catch_y() - 100.0 and drop.y < _catch_y() + 85.0 and absf(drop.x - player_x) < half_width
 
 func _limb_is_visible(drop: Dictionary) -> bool:
     return str(drop.get("phase", "warning")) == "falling"
@@ -491,14 +534,14 @@ func _limb_is_visible(drop: Dictionary) -> bool:
 func _limb_hit(drop: Dictionary) -> void:
     drops.clear()
     for i in 22:
-        particles.append({"p": Vector2(player_x, FLOOR_Y), "v": Vector2(rng.randf_range(-390,390), rng.randf_range(-380,-80)), "life": rng.randf_range(0.45, 0.95), "color": Color("#8d5533")})
+        particles.append({"p": Vector2(player_x, _catch_y()), "v": Vector2(rng.randf_range(-390,390), rng.randf_range(-380,-80)), "life": rng.randf_range(0.45, 0.95), "color": Color("#8d5533")})
     logic.catch_object("limb", -1)
     _reset_squirrel_visual()
     squirrel.play("flatten")
     screen = "recover"
     recover_phase = 0
     recover_time = 0.0
-    _feedback("TIMBER!", Color("#fff0bd"))
+    _feedback("WING HIT!" if str(drop.get("kind", "limb")) == "predator" else "TIMBER!", Color("#fff0bd"))
     _play_sfx("limb")
     _haptic(120)
     _update_carry_stack()
@@ -507,25 +550,26 @@ func _finish_level() -> void:
     var stars := logic.stars()
     var key := str(level_number)
     save_data.ratings[key] = max(int(save_data.ratings.get(key, 0)), stars)
-    save_data.unlocked = min(20, max(int(save_data.unlocked), level_number + 1))
+    save_data.unlocked = min(LevelData.MAX_LEVEL, max(int(save_data.unlocked), level_number + 1))
     _save()
     screen = "results"
     drops.clear()
     _reset_squirrel_visual()
     squirrel.play("pop")
     _feedback("Recipe complete!", Color("#fff4ad"))
-    _spark(Vector2(player_x, FLOOR_Y), Color("#ffe58b"), 24)
+    _spark(Vector2(player_x, _catch_y()), Color("#ffe58b"), 24)
     _haptic(45)
     _update_carry_stack()
 
 func _start_level(number: int) -> void:
-    level_number = clampi(number, 1, 20)
+    level_number = clampi(number, 1, LevelData.MAX_LEVEL)
     definition = LevelData.make(level_number, 7000 + level_number * 31)
     background = _background_for(str(definition.theme.background))
     logic.begin(definition.recipe, 7000 + level_number * 31)
     schedule_seed = 7000 + level_number * 31
     drops.clear()
     particles.clear()
+    lightning_flash = 0.0
     _reset_schedule()
     player_lane = 2
     player_x = LANE_X[2]
@@ -602,13 +646,94 @@ func _background_for(background_id: String) -> Texture2D:
         "summer_oak": "res://assets/art/forest_background.png",
         "autumn_oak": "res://assets/art/seasonal/autumn_oak.png",
         "pine_grove": "res://assets/art/seasonal/pine_grove.png",
-        "winter_pine": "res://assets/art/seasonal/winter_pine.png"
+        "winter_pine": "res://assets/art/seasonal/winter_pine.png",
+        "high_canopy_day": "res://assets/art/seasonal/high_canopy_day_v1.png", "high_canopy_night": "res://assets/art/seasonal/high_canopy_night_v1.png",
+        "high_canopy_storm": "res://assets/art/seasonal/high_canopy_storm_v1.png"
     }
     return load(paths.get(background_id, paths.summer_oak))
 
+func _play_surface_y() -> float:
+    return GROUND_LINE_Y + _branch_y_offset()
+
+func _catch_y() -> float:
+    return _play_surface_y() - (GROUND_LINE_Y - FLOOR_Y)
+
+func _firefly_centers() -> Array[Vector2]:
+    var target_lane := player_lane
+    for drop in drops:
+        if drop.kind == "acorn" and int(drop.variant) == logic.current_variant():
+            target_lane = int(drop.lane)
+            break
+    return [Vector2(player_x + sin(elapsed * 1.7) * 42.0, _play_surface_y() - 190.0), Vector2(LANE_X[target_lane] + cos(elapsed * 2.1) * 42.0, 880.0 + sin(elapsed * 1.4) * 130.0)]
+
+func _night_visibility_at(point: Vector2) -> float:
+    if not bool(definition.get("theme", {}).get("night", false)):
+        return 1.0
+    if lightning_flash > 0.0:
+        return 1.0
+    var visibility := NIGHT_BASE_VISIBILITY
+    for light_center in _firefly_centers():
+        var proximity := 1.0 - clampf(point.distance_to(light_center) / FIREFLY_LIGHT_RADIUS, 0.0, 1.0)
+        var smooth_light := proximity * proximity * (3.0 - 2.0 * proximity)
+        visibility = maxf(visibility, lerpf(NIGHT_BASE_VISIBILITY, 1.0, smooth_light))
+    return visibility
+
+func _night_world_modulate(point: Vector2) -> Color:
+    var visibility := _night_visibility_at(point)
+    return Color(visibility, minf(1.0, visibility * 1.04), minf(1.0, visibility * 1.16), 1.0)
+
+func _lightning_warning_strength() -> float:
+    var strength := 0.0
+    for drop in drops:
+        if str(drop.get("kind", "")) != "lightning" or str(drop.get("phase", "")) != "warning":
+            continue
+        var warning := maxf(0.001, float(drop.get("warning", 1.0)))
+        strength = maxf(strength, clampf(float(drop.get("age", 0.0)) / warning, 0.0, 1.0))
+    return strength
+
+func _draw_firefly_lighting() -> void:
+    var centers := _firefly_centers()
+    for i in centers.size():
+        var p: Vector2 = centers[i]
+        var pulse := 0.5 + 0.5 * sin(elapsed * 2.8 + i * 1.9)
+        # Broad restrained pools preserve useful visibility around the squirrel and
+        # current recipe target; the painted insects provide the natural detail.
+        draw_circle(p, 124.0 + pulse * 12.0, Color("#d5ef83", 0.075 + pulse * 0.025))
+        draw_circle(p, 58.0 + pulse * 7.0, Color("#e8f59a", 0.10 + pulse * 0.035))
+        if firefly_swarm_texture != null:
+            var fx_size := Vector2.ONE * (286.0 + pulse * 18.0)
+            draw_set_transform(p, sin(elapsed * 0.7 + i) * 0.055)
+            draw_texture_rect(firefly_swarm_texture, Rect2(-fx_size * 0.5, fx_size), false, Color(1.0, 1.0, 1.0, 0.64 + pulse * 0.18))
+            draw_set_transform(Vector2.ZERO)
+        else:
+            draw_circle(p, 9.0, Color("#f4ffac", 0.92))
+
+func _draw_lightning_vfx() -> void:
+    var warning_strength := _lightning_warning_strength()
+    var flash_strength := clampf(lightning_flash * 4.6, 0.0, 1.0)
+    if warning_strength <= 0.0 and flash_strength <= 0.0:
+        return
+    # Warning reveals a ghosted strike before the flash. The strike is visual only,
+    # so it cannot create an unavoidable lane hazard.
+    if lightning_fx_texture != null:
+        var bolt_alpha := maxf(warning_strength * (0.13 + 0.05 * sin(elapsed * 12.0)), flash_strength * 0.92)
+        var bolt_rect := Rect2(70.0, SAFE_TOP + 72.0, 690.0, 1035.0)
+        draw_texture_rect(lightning_fx_texture, bolt_rect, false, Color(0.86, 0.94, 1.0, bolt_alpha))
+    if flash_strength > 0.0:
+        draw_rect(Rect2(0, SAFE_TOP, PLAY_RIGHT, H - SAFE_TOP), Color(0.88, 0.95, 1.0, 0.18 + flash_strength * 0.42))
+
+func _finale_stage_label() -> String:
+    if level_number != LevelData.MAX_LEVEL:
+        return ""
+    var stage := clampi(logic.progress + 1, 1, logic.recipe.size())
+    return "FINALE PHASE %d / %d" % [stage, logic.recipe.size()]
+
+func _branch_y_offset() -> float:
+    return sin(elapsed * 1.65) * 16.0 if str(definition.get("theme", {}).get("branch_mode", "stationary")) == "sway" else 0.0
+
 func _reset_squirrel_visual() -> void:
     idle_time = 0.0
-    squirrel.position = Vector2(player_x, SQUIRREL_Y)
+    squirrel.position = Vector2(player_x, _play_surface_y() - SQUIRREL_FOOT_OFFSET)
     squirrel.scale = Vector2.ONE * SQUIRREL_BASE_SCALE
     squirrel.rotation = 0.0
 
@@ -616,7 +741,7 @@ func _apply_idle_visual(delta: float) -> void:
     idle_time += delta
     var breath := 1.0 + sin(idle_time * IDLE_BREATH_SPEED) * IDLE_BREATH_SCALE
     squirrel.scale = Vector2.ONE * SQUIRREL_BASE_SCALE * breath
-    squirrel.position = Vector2(player_x, SQUIRREL_Y + sin(idle_time * IDLE_SWAY_SPEED) * IDLE_BOB_PIXELS)
+    squirrel.position = Vector2(player_x, _play_surface_y() - SQUIRREL_FOOT_OFFSET + sin(idle_time * IDLE_SWAY_SPEED) * IDLE_BOB_PIXELS)
     squirrel.rotation = sin(idle_time * IDLE_SWAY_SPEED) * IDLE_SWAY_RADIANS
 
 func _retry_level() -> void:
@@ -633,7 +758,7 @@ func _pause_click(point: Vector2) -> void:
     _play_sfx("button")
 
 func _results_click(point: Vector2) -> void:
-    if RESULTS_BUTTON_RECTS[0].has_point(point) and level_number < 20:
+    if RESULTS_BUTTON_RECTS[0].has_point(point) and level_number < LevelData.MAX_LEVEL:
         _start_level(level_number + 1)
     elif RESULTS_BUTTON_RECTS[1].has_point(point):
         _retry_level()
@@ -665,7 +790,7 @@ func _map_click(point: Vector2) -> void:
         _begin_tree_crossing(map_page + 1)
         return
     var first := _map_page_first(map_page)
-    var last: int = min(first + MAP_PAGE_LEVELS, LevelData.NAMES.size() + 1)
+    var last: int = min(first + MAP_PAGE_LEVELS, LevelData.MAX_LEVEL + 1)
     for number in range(first, last):
         var pos := _map_node_position(number)
         if point.distance_to(pos) < MAP_NODE_RADIUS + 22.0 and number <= int(save_data.unlocked):
@@ -678,7 +803,7 @@ func _map_node_position(number: int) -> Vector2:
     return MAP_NODE_POSITIONS[page][index]
 
 func _draw() -> void:
-    var page_background := (trail_background if map_page == 1 else trail_background_2) if screen == "map" else background
+    var page_background: Texture2D = trail_backgrounds[map_page - 1] if screen == "map" else background
     if page_background != null:
         draw_texture_rect(page_background, Rect2(0, 0, W, H), false, Color(1,1,1,0.72))
     draw_rect(Rect2(0,0,W,H), Color("#173f37", 0.32))
@@ -771,7 +896,7 @@ func _draw_map() -> void:
     _draw_textured_medallion(Vector2(942, 141), 38.0, true, false)
     _draw_settings_gear(Vector2(942, 141), 24.0)
     var first := _map_page_first(map_page)
-    var last: int = min(first + MAP_PAGE_LEVELS, LevelData.NAMES.size() + 1)
+    var last: int = min(first + MAP_PAGE_LEVELS, LevelData.MAX_LEVEL + 1)
     for n in range(first, last):
         var p := _map_node_position(n)
         var unlocked := n <= int(save_data.unlocked)
@@ -786,7 +911,7 @@ func _draw_map() -> void:
             _draw_collectible(p + Vector2(-29 + slot * 29, 82), 0.0, slot, 0.19, "acorn", slot >= stars)
         var label_rect := _map_label_rect(p)
         _panel(label_rect, Color("#315544", 0.74))
-        _text(LevelData.NAMES[n-1], Vector2(label_rect.position.x, label_rect.position.y + 25), 19, Color("#f6f2ce"), HORIZONTAL_ALIGNMENT_CENTER, label_rect.size.x)
+        _text(LevelData.level_name(n), Vector2(label_rect.position.x, label_rect.position.y + 25), 19, Color("#f6f2ce"), HORIZONTAL_ALIGNMENT_CENTER, label_rect.size.x)
     if _map_can_navigate(-1):
         _draw_leaf_button(MAP_PREVIOUS_RECT, "PREVIOUS TREE", true, Color("#6c8757"))
     if _map_can_navigate(1):
@@ -804,7 +929,9 @@ func _draw_results() -> void:
     var stars := logic.stars()
     _draw_wood_panel(RESULTS_PANEL_RECT, Color("#214337", 0.91))
     _draw_nature_heading(RESULTS_HEADER_RECT, "RECIPE COMPLETE!")
-    _draw_tree_ring(RESULTS_MEDALLION_CENTER, RESULTS_MEDALLION_RADIUS)
+    # Keep carved grain out of the character portrait. At phone scale, a grain arc
+    # behind the face/body reads as a hard horizontal cut through the squirrel.
+    _draw_tree_ring(RESULTS_MEDALLION_CENTER, RESULTS_MEDALLION_RADIUS, false)
     for leaf_index in 6:
         var leaf_angle := TAU * leaf_index / 6.0 + 0.24
         var leaf_center := RESULTS_MEDALLION_CENTER + Vector2(cos(leaf_angle), sin(leaf_angle)) * (RESULTS_MEDALLION_RADIUS + 26.0)
@@ -814,7 +941,7 @@ func _draw_results() -> void:
     for slot in range(3):
         _draw_collectible(Vector2(430 + slot * 110, 1178), 0.0, slot, 0.58, "acorn", slot >= stars)
     _text("%d mistake%s" % [logic.mistakes, "" if logic.mistakes == 1 else "s"], Vector2(0, 1280), 32, Color("#f7dfb9"), HORIZONTAL_ALIGNMENT_CENTER, W)
-    _draw_leaf_button(RESULTS_BUTTON_RECTS[0], "NEXT LEVEL" if level_number < 20 else "ALL 20 LEVELS COMPLETE", level_number < 20, Color("#ba6e3d"))
+    _draw_leaf_button(RESULTS_BUTTON_RECTS[0], "NEXT LEVEL" if level_number < LevelData.MAX_LEVEL else "ALL 50 LEVELS COMPLETE", level_number < LevelData.MAX_LEVEL, Color("#ba6e3d"))
     _draw_leaf_button(RESULTS_BUTTON_RECTS[1], "RETRY LEVEL", true, Color("#9a5637"))
     _draw_leaf_button(RESULTS_BUTTON_RECTS[2], "TREE TRAIL", true, Color("#5f8958"))
 
@@ -835,18 +962,28 @@ func _title_squirrel_visual_rect() -> Rect2:
     return Rect2(top_left, TITLE_SQUIRREL_SOURCE_BOUNDS.size * TITLE_SQUIRREL_SCALE)
 
 func _draw_game() -> void:
+    var theme: Dictionary = definition.get("theme", {})
+    if bool(theme.get("play_limb", false)):
+        var limb_texture: Texture2D = play_limb_texture
+        if limb_texture != null: draw_texture_rect(limb_texture, Rect2(0.0, _play_surface_y() - 250.0, PLAY_RIGHT, 340.0), false)
+    if bool(theme.get("night", false)):
+        draw_rect(Rect2(0, SAFE_TOP, PLAY_RIGHT, H - SAFE_TOP), Color("#061027", 0.48))
+        _draw_firefly_lighting()
+    _draw_lightning_vfx()
     if bool(definition.get("theme", {}).get("ambient", false)):
         _draw_ambient_snow()
     _draw_goal()
     _draw_wood_panel(Rect2(38, SAFE_TOP, 505, 94), Color("#244338",0.88))
     _text("LEVEL %d  %s" % [level_number, definition.name], Vector2(65, SAFE_TOP + 62), 31, Color("#fff0b0"))
+    if not _finale_stage_label().is_empty():
+        _text(_finale_stage_label(), Vector2(80, SAFE_TOP + 132), 27, Color("#fff2a6"))
     if pause_log_texture != null:
         draw_texture_rect(pause_log_texture, PAUSE_RECT, false)
     for drop in drops:
         _draw_drop(drop)
     for particle in particles:
         draw_circle(particle.p, 7.0 * particle.life + 2.0, particle.color)
-    draw_line(Vector2(55,GROUND_LINE_Y), Vector2(PLAY_RIGHT,GROUND_LINE_Y), Color("#6a4a31"), 12)
+    draw_line(Vector2(55,_play_surface_y()), Vector2(PLAY_RIGHT,_play_surface_y()), Color("#6a4a31"), 12)
     if status_time > 0.0:
         _panel(Rect2(80, 1290, 700, 90), Color("#315443",0.93))
         _text(status_text, Vector2(105, 1350), 35, Color("#fff5cc"), HORIZONTAL_ALIGNMENT_CENTER, 650)
@@ -883,15 +1020,16 @@ func _draw_nature_heading(rect: Rect2, label: String) -> void:
     _draw_ui_leaf(ui_leaf_amber_texture, rect.end - Vector2(58.0, rect.size.y * 0.5), UI_LEAF_HEADING_SIZE, 0.55)
     _text(label, Vector2(rect.position.x, rect.position.y + 115.0), 58, Color("#fff3b7"), HORIZONTAL_ALIGNMENT_CENTER, rect.size.x)
 
-func _draw_tree_ring(center: Vector2, radius: float) -> void:
+func _draw_tree_ring(center: Vector2, radius: float, with_inner_grain := true) -> void:
     draw_circle(center, radius + 18.0, Color("#523321", 0.98))
     draw_circle(center, radius + 11.0, Color("#73472c", 0.98))
     draw_circle(center, radius + 4.0, Color("#9a6037", 0.98))
     draw_circle(center, radius - 4.0, Color("#bd7c47", 0.98))
     draw_circle(center, radius - 20.0, Color("#d7a66a", 0.98))
-    draw_circle(center + Vector2(-7.0, 6.0), radius * 0.32, Color("#e4bd81", 0.28))
-    for ring in [0.25, 0.46, 0.67, 0.84]:
-        draw_arc(center + Vector2(-12.0, 8.0), (radius - 30.0) * ring, -2.7, 2.5, 42, Color("#805035", 0.58), 3.0)
+    draw_circle(center + Vector2(-7.0, 6.0), radius * 0.32, Color("#e4bd81", 0.18))
+    if with_inner_grain:
+        for ring in [0.25, 0.46, 0.67, 0.84]:
+            draw_arc(center + Vector2(-12.0, 8.0), (radius - 30.0) * ring, -2.7, 2.5, 42, Color("#805035", 0.58), 3.0)
     for notch in 16:
         var angle := TAU * notch / 16.0
         var from := center + Vector2(cos(angle), sin(angle)) * (radius - 8.0)
@@ -957,7 +1095,7 @@ func _update_carry_stack() -> void:
             # mirrors inward, preserving the goal rail and the squirrel's eye.
             var side := -1.0 if player_lane == 4 else 1.0
             var offset := Vector2(side * (76.0 + (i % 2) * 11.0), -56.0 - i * 42.0)
-            carried.position = Vector2(player_x, SQUIRREL_Y) + offset
+            carried.position = Vector2(player_x, _play_surface_y() - SQUIRREL_FOOT_OFFSET) + offset
             carried.rotation = wobble * side
         # Source strips are deliberately high resolution: render the result stack
         # at 74 px and the in-play stack at its established 74 reference pixels.
@@ -989,6 +1127,18 @@ func _draw_textured_medallion(center: Vector2, radius: float, unlocked: bool, co
     draw_arc(center, radius - 19.0, 0.0, TAU, 32, Color("#f5d893", 0.25) if unlocked else Color("#c7d0c2", 0.2), 2.0)
 
 func _draw_drop(drop: Dictionary) -> void:
+    if drop.kind == "gust":
+        var direction_label := "LEFT" if int(drop.get("direction", 0)) < 0 else "RIGHT"
+        _text(("WIND ->" if direction_label == "RIGHT" else "<- WIND") if drop.phase == "warning" else "GUST " + direction_label, Vector2(74, 450), 42, Color("#e7f4bf"))
+        return
+    if drop.kind == "lightning":
+        _text("FLASH!" if drop.phase == "active" else "LIGHTNING SOON", Vector2(74, 500), 42, Color("#fff2b1"))
+        return
+    if drop.kind == "predator":
+        var predator_texture: Texture2D = hawk_texture if str(drop.skin) == "hawk" else owl_texture
+        if predator_texture != null: draw_texture_rect(predator_texture, Rect2(drop.x - 110.0, drop.y - 110.0, 220.0, 220.0), false, _night_world_modulate(Vector2(drop.x, drop.y)))
+        if drop.phase == "warning": _text("LOOK UP!", Vector2(drop.x - 100.0, 270.0), 31, Color("#fff2a6"), HORIZONTAL_ALIGNMENT_CENTER, 200.0)
+        return
     if drop.kind == "limb":
         if not _limb_is_visible(drop):
             # Telegraph only: a heavy ground shadow and readable plaque, never a
@@ -1006,39 +1156,40 @@ func _draw_drop(drop: Dictionary) -> void:
             draw_style_box(plaque, label_rect)
             _text("INCOMING!", Vector2(label_rect.position.x, label_rect.position.y + 46.0), 31, Color("#fff2a6"), HORIZONTAL_ALIGNMENT_CENTER, label_rect.size.x)
         else:
-            _draw_hazard(Vector2(drop.x, drop.y), drop.rotation, str(drop.skin), drop.variant, 1.35 * drop.width)
+            _draw_hazard(Vector2(drop.x, drop.y), drop.rotation, str(drop.skin), drop.variant, 1.35 * drop.width, _night_world_modulate(Vector2(drop.x, drop.y)))
     elif drop.kind == "leaf":
-        _draw_hazard(Vector2(drop.x, drop.y), drop.rotation, str(drop.skin), drop.variant, drop.scale)
+        _draw_hazard(Vector2(drop.x, drop.y), drop.rotation, str(drop.skin), drop.variant, drop.scale, _night_world_modulate(Vector2(drop.x, drop.y)))
     else:
-        _draw_collectible(Vector2(drop.x, drop.y + drop.bob), drop.rotation, drop.variant, 1.0, str(drop.family), false)
+        var collectible_center := Vector2(drop.x, drop.y + drop.bob)
+        _draw_collectible(collectible_center, drop.rotation, drop.variant, 1.0, str(drop.family), false, _night_world_modulate(collectible_center))
 
 func _limb_warning_shadow_center(drop: Dictionary) -> Vector2:
-    return Vector2(clampf(float(drop.base_x), 92.0, PLAY_RIGHT - 92.0), GROUND_LINE_Y - WARNING_SHADOW_Y_OFFSET)
+    return Vector2(clampf(float(drop.base_x), 92.0, PLAY_RIGHT - 92.0), _play_surface_y() - WARNING_SHADOW_Y_OFFSET)
 
 func _limb_warning_label_rect(drop: Dictionary) -> Rect2:
     var x := clampf(float(drop.base_x) - WARNING_LABEL_SIZE.x * 0.5, 24.0, PLAY_RIGHT - WARNING_LABEL_SIZE.x - 18.0)
-    return Rect2(x, GROUND_LINE_Y - WARNING_LABEL_Y_OFFSET, WARNING_LABEL_SIZE.x, WARNING_LABEL_SIZE.y)
+    return Rect2(x, _play_surface_y() - WARNING_LABEL_Y_OFFSET, WARNING_LABEL_SIZE.x, WARNING_LABEL_SIZE.y)
 
-func _draw_collectible(center: Vector2, rotation: float, variant: int, scale: float, family: String, dimmed: bool) -> void:
+func _draw_collectible(center: Vector2, rotation: float, variant: int, scale: float, family: String, dimmed: bool, world_modulate := Color.WHITE) -> void:
     var texture: Texture2D = item_textures.get(family)
     if texture == null:
-        _draw_acorn(center, rotation, Color("#727d72") if dimmed else ACORN_COLORS[variant], variant, scale)
+        _draw_acorn(center, rotation, (Color("#727d72") if dimmed else ACORN_COLORS[variant]) * world_modulate, variant, scale)
         return
     var cell_width := texture.get_width() / 4
     draw_set_transform(center, rotation, Vector2.ONE * scale)
-    var color := Color(0.42, 0.46, 0.42, 0.85) if dimmed else Color.WHITE
+    var color := (Color(0.42, 0.46, 0.42, 0.85) if dimmed else Color.WHITE) * world_modulate
     draw_texture_rect_region(texture, Rect2(-72, -72, 144, 144), Rect2(variant * cell_width, 0, cell_width, texture.get_height()), color)
     draw_set_transform(Vector2.ZERO)
 
-func _draw_hazard(center: Vector2, rotation: float, skin: String, variant: int, scale: float) -> void:
+func _draw_hazard(center: Vector2, rotation: float, skin: String, variant: int, scale: float, world_modulate := Color.WHITE) -> void:
     if skin == "leaf" and posmod(variant, 4) == 3 and yellow_leaf_texture != null:
         draw_set_transform(center, rotation, Vector2.ONE * scale)
-        draw_texture_rect(yellow_leaf_texture, Rect2(-78, -78, 156, 156), false)
+        draw_texture_rect(yellow_leaf_texture, Rect2(-78, -78, 156, 156), false, world_modulate)
         draw_set_transform(Vector2.ZERO)
         return
     var texture := _hazard_texture_for(skin)
     if texture == null:
-        _draw_acorn(center, rotation, Color("#d57136"), 0, scale)
+        _draw_acorn(center, rotation, Color("#d57136") * world_modulate, 0, scale)
         return
     var source: Rect2
     if skin == "leaf":
@@ -1051,7 +1202,7 @@ func _draw_hazard(center: Vector2, rotation: float, skin: String, variant: int, 
         var cell := Vector2(texture.get_width() / 2, texture.get_height() / 2)
         source = Rect2((hazard_index % 2) * cell.x, (hazard_index / 2) * cell.y, cell.x, cell.y)
     draw_set_transform(center, rotation, Vector2.ONE * scale)
-    draw_texture_rect_region(texture, Rect2(-78, -78, 156, 156), source)
+    draw_texture_rect_region(texture, Rect2(-78, -78, 156, 156), source, world_modulate)
     draw_set_transform(Vector2.ZERO)
 
 func _hazard_texture_for(skin: String) -> Texture2D:

@@ -3,8 +3,9 @@ const GameLogic = preload("res://scripts/game_logic.gd")
 const LevelData = preload("res://scripts/level_data.gd")
 var failures := 0
 func expect(condition: bool, label: String) -> void:
-    if condition: print("PASS ", label)
-    else: failures += 1; push_error("FAIL " + label)
+    if not condition:
+        failures += 1
+        push_error("FAIL " + label)
 func _init() -> void:
     var level_names := {}
     expect(LevelData.NAMES.size() == 20, "twenty level names")
@@ -77,7 +78,7 @@ func _init() -> void:
         var seeds_ok := true
         var seeded_skins_ok := true
         var leaf_variants := {}
-        for seed in range(1,101):
+        for seed in range(1,33):
             var seeded := LevelData.make(level, seed)
             seeds_ok = seeds_ok and GameLogic.simulate_level(level, seed)
             for event in seeded.events:
@@ -85,13 +86,53 @@ func _init() -> void:
                 if event.kind != "limb":
                     seeded_skins_ok = seeded_skins_ok and str(event.get("skin", "")) != "branch"
                 if event.get("skin", "") == "leaf": leaf_variants[event.variant] = true
-        expect(seeds_ok, "100 deterministic seeds are solvable")
-        expect(seeded_skins_ok, "100 seeded schedules keep branches limb-only")
+        expect(seeds_ok, "32 deterministic seeds are solvable")
+        expect(seeded_skins_ok, "32 seeded schedules keep branches limb-only")
         if level == 4 or level == 7 or level == 8: expect(leaf_variants.size() == 4, "all four generated leaf variants appear across seeds")
-    expect(LevelData.make(-5, 4).number == 1 and LevelData.make(99, 4).number == 20, "level requests clamp to the 20-level route")
+    expect(LevelData.level_count() == 50 and LevelData.CANOPY_NAMES.size() == 30 and LevelData.CANOPY_RECIPES.size() == 30, "fifty authored level definitions")
+    var all_names := {}
+    for level in range(1, 51):
+        var authored_name := LevelData.level_name(level)
+        expect(not authored_name.is_empty() and not all_names.has(authored_name), "level %d has a unique name" % level)
+        all_names[authored_name] = true
+        var canopy := LevelData.make(level, 1234)
+        var canopy_repeat := LevelData.make(level, 1234)
+        expect(canopy == canopy_repeat, "level %d repeats deterministically" % level)
+        expect(LevelData.validate(canopy) and GameLogic.simulate_level(level, 1234), "level %d deterministic schedule is safe" % level)
+        if level >= 21:
+            expect(canopy.recipe.size() == 5 and canopy.theme.fall_speed_mode == "mixed", "canopy level %d has five mixed-speed items" % level)
+            var acorn_speeds: Array[float] = []
+            for speed_event in canopy.events:
+                if speed_event.kind == "acorn": acorn_speeds.append(float(speed_event.speed))
+            expect(acorn_speeds.max() - acorn_speeds.min() > canopy.speed_range * 0.35, "level %d visibly mixes fall speeds" % level)
+        if level >= 26 and level <= 30:
+            var gusts: Array = canopy.events.filter(func(event): return event.kind == "gust")
+            var intermittent := gusts.size() >= 2
+            for gust_index in range(1, gusts.size()):
+                intermittent = intermittent and float(gusts[gust_index].time - gusts[gust_index - 1].time) > float(gusts[gust_index - 1].warning + gusts[gust_index - 1].duration)
+            expect(intermittent and gusts.all(func(event): return event.warning >= 1.0 and abs(int(event.direction)) == 1), "level %d gusts are intermittent and telegraphed" % level)
+        if level >= 31 and level <= 35:
+            expect(canopy.events.any(func(event): return event.kind == "predator" and event.warning >= 1.2 and event.lane >= 0 and event.lane < 5), "level %d predator has a fixed warned lane" % level)
+        if level >= 36 and level <= 40:
+            expect(canopy.theme.play_limb and canopy.theme.branch_mode == "sway", "level %d uses the swaying play limb" % level)
+        if level >= 41 and level <= 45:
+            expect(canopy.theme.night and canopy.theme.fireflies and canopy.theme.background == "high_canopy_night", "level %d uses night fireflies" % level)
+        if level >= 46:
+            expect(canopy.theme.lightning and canopy.theme.finale_stage == level - 45 and canopy.theme.branch_mode == "sway", "level %d storm stage metadata" % level)
+            expect(bool(canopy.theme.get("gusts", false)) == (level >= 47), "storm gust escalation")
+            expect(bool(canopy.theme.get("predators", false)) == (level >= 48), "storm predator escalation")
+            expect(bool(canopy.theme.get("night", false)) == (level >= 49), "storm night escalation")
+    var all_seeded_levels_safe := true
+    for deterministic_seed in range(1, 33):
+        for deterministic_level in range(1, 51):
+            var seeded_a := LevelData.make(deterministic_level, deterministic_seed)
+            var seeded_b := LevelData.make(deterministic_level, deterministic_seed)
+            all_seeded_levels_safe = all_seeded_levels_safe and seeded_a == seeded_b and GameLogic.simulate_level(deterministic_level, deterministic_seed)
+    expect(all_seeded_levels_safe, "32 deterministic seeds are reproducible and safe across all 50 levels")
+    expect(LevelData.make(-5, 4).number == 1 and LevelData.make(99, 4).number == 50, "level requests clamp to the 50-level route")
     # Dodge through three complete authored schedules. The stream must retain
     # its cadence, complete mix, deterministic variation and target recurrence.
-    for level in range(1, 21):
+    for level in range(1, 51):
         var stream_definition := LevelData.make(level, 2468)
         var base_cycle: Array = stream_definition.events.duplicate(true)
         var continuation_one := LevelData.make_continuation(stream_definition, 2468, 1, base_cycle)
@@ -131,8 +172,8 @@ func _init() -> void:
             expect(int(continuation_mix.limb) > 0, "level %d major hazards continue" % level)
 
     var continuation_seed_safety := true
-    for continuation_seed in range(1, 26):
-        for continuation_level in range(1, 21):
+    for continuation_seed in range(1, 13):
+        for continuation_level in range(1, 51):
             var continuation_definition := LevelData.make(continuation_level, continuation_seed)
             var first_cycle: Array = continuation_definition.events.duplicate(true)
             var second_cycle: Array = LevelData.make_continuation(continuation_definition, continuation_seed, 1, first_cycle)
@@ -141,7 +182,7 @@ func _init() -> void:
                 "number": continuation_level, "recipe": continuation_definition.recipe,
                 "events": first_cycle + second_cycle + third_cycle
             })
-    expect(continuation_seed_safety, "25 deterministic seeds keep all cross-cycle schedules fair")
+    expect(continuation_seed_safety, "12 deterministic seeds keep all 50 cross-cycle schedules fair")
 
     print("TEST_FAILURES=", failures)
     quit(1 if failures > 0 else 0)

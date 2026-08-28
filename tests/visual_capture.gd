@@ -21,12 +21,15 @@ func _init() -> void:
     var scene: Node = packed.instantiate()
     root.add_child(scene)
     await process_frame
-    scene.save_data.unlocked = 20
+    scene.save_data.unlocked = 50
     for size in SIZES:
         scene.screen = "title"; await capture(scene, "title", size)
         scene.screen = "map"; scene.map_page = 1; await capture(scene, "tree1", size)
         scene._begin_tree_crossing(2); scene._update_map_crossing(0.25); await capture(scene, "crossing", size)
         scene._update_map_crossing(1.0); await capture(scene, "tree2", size)
+        scene.screen = "map"; scene.map_page = 3; await capture(scene, "tree3", size)
+        scene.map_page = 4; await capture(scene, "tree4", size)
+        scene.map_page = 5; await capture(scene, "tree5", size)
         scene.screen = "settings"; await capture(scene, "settings", size)
         scene._start_level(1); await capture(scene, "play01", size)
         scene._start_level(6)
@@ -40,6 +43,41 @@ func _init() -> void:
         scene._start_level(11); await capture(scene, "play11", size)
         scene.logic.progress = 5; scene._update_carry_stack(); await capture(scene, "carry5", size)
         scene._start_level(20); await capture(scene, "play20", size)
+        scene._start_level(25)
+        scene._spawn_event({"kind":"acorn", "family":"acorn", "variant":0, "lane":1, "speed":420.0})
+        scene._spawn_event({"kind":"acorn", "family":"acorn", "variant":2, "lane":3, "speed":860.0})
+        scene.drops[0].y = 520.0; scene.drops[1].y = 850.0
+        await capture(scene, "play25_mixed_speeds", size)
+        scene._start_level(30)
+        scene._spawn_event({"kind":"acorn", "family":"pinecone", "variant":scene.logic.current_variant(), "lane":2, "speed":620.0})
+        scene.drops[0].y = 690.0
+        scene._spawn_event({"kind":"gust", "warning":1.05, "duration":0.38, "direction":1})
+        scene.drops[1].age = 0.55
+        await capture(scene, "play30_gust_warning", size)
+        scene._move_drop(scene.drops[1], 0.51)
+        await capture(scene, "play30_gust_resolved", size)
+        scene._start_level(35)
+        scene._spawn_event({"kind":"predator", "skin":"hawk", "lane":2, "speed":650.0, "warning":1.45})
+        scene.drops[0].age = 0.72; scene._move_drop(scene.drops[0], 0.0)
+        await capture(scene, "play35_predator_approach", size)
+        scene.drops[0].phase = "falling"; scene.drops[0].y = 520.0
+        await capture(scene, "play35_predator_swoop", size)
+        scene._start_level(40); scene.elapsed = PI / (2.0 * 1.65)
+        await capture(scene, "play40_swaying_limb", size)
+        scene._start_level(45)
+        scene._spawn_event({"kind":"acorn", "family":"acorn", "variant":scene.logic.current_variant(), "lane":4, "speed":620.0})
+        scene.drops[0].y = 760.0
+        scene._spawn_event({"kind":"acorn", "family":"acorn", "variant":(scene.logic.current_variant() + 1) % 4, "lane":0, "speed":560.0})
+        scene.drops[1].y = 500.0
+        await capture(scene, "play45_firefly_night", size)
+        scene._start_level(50)
+        scene._spawn_event({"kind":"lightning", "warning":0.85, "duration":0.22})
+        scene.drops[0].age = 0.42
+        await capture(scene, "play50_lightning_warning", size)
+        scene._move_drop(scene.drops[0], 0.44)
+        await capture(scene, "play50_lightning_flash", size)
+        scene.logic.progress = 3
+        await capture(scene, "play50_finale_phase4", size)
         scene.paused = true; await capture(scene, "pause", size)
         scene.paused = false
         scene._start_level(4); scene.logic.progress = scene.logic.recipe.size(); scene._finish_level(); await capture(scene, "results_acorn", size)
@@ -59,5 +97,7 @@ func _init() -> void:
         await capture(scene, "icicle_fall", size)
         scene._start_level(8); scene._limb_hit({}); await capture(scene, "flatten", size)
         scene.squirrel.frame = 1; scene._update_recovery(0.0); await capture(scene, "recovery", size)
+    scene.free()
+    await process_frame
     print("VISUAL_CAPTURE_PASS user://qa")
     quit()
