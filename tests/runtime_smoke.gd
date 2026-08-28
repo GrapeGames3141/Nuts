@@ -392,6 +392,15 @@ func _init() -> void:
     var lights_b: Array[Vector2] = scene._firefly_centers()
     assert(lights_a.size() == 2 and lights_a[0].x >= scene.player_x - 43.0 and absf(lights_a[1].x - scene.LANE_X[4]) <= 43.0)
     assert(lights_a != lights_b)
+    scene.elapsed = 0.0
+    var target_light_center: Vector2 = scene._firefly_centers()[1]
+    var far_dark_point := Vector2(80.0, 500.0)
+    assert(scene._night_visibility_at(target_light_center) > 0.99)
+    assert(scene._night_visibility_at(far_dark_point) <= scene.NIGHT_BASE_VISIBILITY + 0.01)
+    assert(scene._night_world_modulate(far_dark_point).r < 0.30)
+    scene.lightning_flash = 0.22
+    assert(is_equal_approx(scene._night_visibility_at(far_dark_point), 1.0))
+    scene.lightning_flash = 0.0
     scene._start_level(50)
     assert(scene.definition.theme.lightning and scene.definition.theme.finale_stage == 5)
     assert(scene._finale_stage_label() == "FINALE PHASE 1 / 5")

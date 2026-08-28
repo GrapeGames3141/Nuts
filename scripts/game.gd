@@ -77,6 +77,8 @@ const UI_LEAF_HEADING_SIZE := 74.0
 const UI_LEAF_BUTTON_SIZE := 42.0
 const UI_LEAF_RESULT_SIZE := 70.0
 const UI_LEAF_GEAR_SIZE := 30.0
+const NIGHT_BASE_VISIBILITY := 0.24
+const FIREFLY_LIGHT_RADIUS := 260.0
 var screen := "title"
 var level_number := 1
 var map_page := 1
@@ -664,6 +666,22 @@ func _firefly_centers() -> Array[Vector2]:
             break
     return [Vector2(player_x + sin(elapsed * 1.7) * 42.0, _play_surface_y() - 190.0), Vector2(LANE_X[target_lane] + cos(elapsed * 2.1) * 42.0, 880.0 + sin(elapsed * 1.4) * 130.0)]
 
+func _night_visibility_at(point: Vector2) -> float:
+    if not bool(definition.get("theme", {}).get("night", false)):
+        return 1.0
+    if lightning_flash > 0.0:
+        return 1.0
+    var visibility := NIGHT_BASE_VISIBILITY
+    for light_center in _firefly_centers():
+        var proximity := 1.0 - clampf(point.distance_to(light_center) / FIREFLY_LIGHT_RADIUS, 0.0, 1.0)
+        var smooth_light := proximity * proximity * (3.0 - 2.0 * proximity)
+        visibility = maxf(visibility, lerpf(NIGHT_BASE_VISIBILITY, 1.0, smooth_light))
+    return visibility
+
+func _night_world_modulate(point: Vector2) -> Color:
+    var visibility := _night_visibility_at(point)
+    return Color(visibility, minf(1.0, visibility * 1.04), minf(1.0, visibility * 1.16), 1.0)
+
 func _lightning_warning_strength() -> float:
     var strength := 0.0
     for drop in drops:
@@ -1118,7 +1136,7 @@ func _draw_drop(drop: Dictionary) -> void:
         return
     if drop.kind == "predator":
         var predator_texture: Texture2D = hawk_texture if str(drop.skin) == "hawk" else owl_texture
-        if predator_texture != null: draw_texture_rect(predator_texture, Rect2(drop.x - 110.0, drop.y - 110.0, 220.0, 220.0), false)
+        if predator_texture != null: draw_texture_rect(predator_texture, Rect2(drop.x - 110.0, drop.y - 110.0, 220.0, 220.0), false, _night_world_modulate(Vector2(drop.x, drop.y)))
         if drop.phase == "warning": _text("LOOK UP!", Vector2(drop.x - 100.0, 270.0), 31, Color("#fff2a6"), HORIZONTAL_ALIGNMENT_CENTER, 200.0)
         return
     if drop.kind == "limb":
@@ -1138,11 +1156,12 @@ func _draw_drop(drop: Dictionary) -> void:
             draw_style_box(plaque, label_rect)
             _text("INCOMING!", Vector2(label_rect.position.x, label_rect.position.y + 46.0), 31, Color("#fff2a6"), HORIZONTAL_ALIGNMENT_CENTER, label_rect.size.x)
         else:
-            _draw_hazard(Vector2(drop.x, drop.y), drop.rotation, str(drop.skin), drop.variant, 1.35 * drop.width)
+            _draw_hazard(Vector2(drop.x, drop.y), drop.rotation, str(drop.skin), drop.variant, 1.35 * drop.width, _night_world_modulate(Vector2(drop.x, drop.y)))
     elif drop.kind == "leaf":
-        _draw_hazard(Vector2(drop.x, drop.y), drop.rotation, str(drop.skin), drop.variant, drop.scale)
+        _draw_hazard(Vector2(drop.x, drop.y), drop.rotation, str(drop.skin), drop.variant, drop.scale, _night_world_modulate(Vector2(drop.x, drop.y)))
     else:
-        _draw_collectible(Vector2(drop.x, drop.y + drop.bob), drop.rotation, drop.variant, 1.0, str(drop.family), false)
+        var collectible_center := Vector2(drop.x, drop.y + drop.bob)
+        _draw_collectible(collectible_center, drop.rotation, drop.variant, 1.0, str(drop.family), false, _night_world_modulate(collectible_center))
 
 func _limb_warning_shadow_center(drop: Dictionary) -> Vector2:
     return Vector2(clampf(float(drop.base_x), 92.0, PLAY_RIGHT - 92.0), _play_surface_y() - WARNING_SHADOW_Y_OFFSET)
@@ -1151,26 +1170,26 @@ func _limb_warning_label_rect(drop: Dictionary) -> Rect2:
     var x := clampf(float(drop.base_x) - WARNING_LABEL_SIZE.x * 0.5, 24.0, PLAY_RIGHT - WARNING_LABEL_SIZE.x - 18.0)
     return Rect2(x, _play_surface_y() - WARNING_LABEL_Y_OFFSET, WARNING_LABEL_SIZE.x, WARNING_LABEL_SIZE.y)
 
-func _draw_collectible(center: Vector2, rotation: float, variant: int, scale: float, family: String, dimmed: bool) -> void:
+func _draw_collectible(center: Vector2, rotation: float, variant: int, scale: float, family: String, dimmed: bool, world_modulate := Color.WHITE) -> void:
     var texture: Texture2D = item_textures.get(family)
     if texture == null:
-        _draw_acorn(center, rotation, Color("#727d72") if dimmed else ACORN_COLORS[variant], variant, scale)
+        _draw_acorn(center, rotation, (Color("#727d72") if dimmed else ACORN_COLORS[variant]) * world_modulate, variant, scale)
         return
     var cell_width := texture.get_width() / 4
     draw_set_transform(center, rotation, Vector2.ONE * scale)
-    var color := Color(0.42, 0.46, 0.42, 0.85) if dimmed else Color.WHITE
+    var color := (Color(0.42, 0.46, 0.42, 0.85) if dimmed else Color.WHITE) * world_modulate
     draw_texture_rect_region(texture, Rect2(-72, -72, 144, 144), Rect2(variant * cell_width, 0, cell_width, texture.get_height()), color)
     draw_set_transform(Vector2.ZERO)
 
-func _draw_hazard(center: Vector2, rotation: float, skin: String, variant: int, scale: float) -> void:
+func _draw_hazard(center: Vector2, rotation: float, skin: String, variant: int, scale: float, world_modulate := Color.WHITE) -> void:
     if skin == "leaf" and posmod(variant, 4) == 3 and yellow_leaf_texture != null:
         draw_set_transform(center, rotation, Vector2.ONE * scale)
-        draw_texture_rect(yellow_leaf_texture, Rect2(-78, -78, 156, 156), false)
+        draw_texture_rect(yellow_leaf_texture, Rect2(-78, -78, 156, 156), false, world_modulate)
         draw_set_transform(Vector2.ZERO)
         return
     var texture := _hazard_texture_for(skin)
     if texture == null:
-        _draw_acorn(center, rotation, Color("#d57136"), 0, scale)
+        _draw_acorn(center, rotation, Color("#d57136") * world_modulate, 0, scale)
         return
     var source: Rect2
     if skin == "leaf":
@@ -1183,7 +1202,7 @@ func _draw_hazard(center: Vector2, rotation: float, skin: String, variant: int, 
         var cell := Vector2(texture.get_width() / 2, texture.get_height() / 2)
         source = Rect2((hazard_index % 2) * cell.x, (hazard_index / 2) * cell.y, cell.x, cell.y)
     draw_set_transform(center, rotation, Vector2.ONE * scale)
-    draw_texture_rect_region(texture, Rect2(-78, -78, 156, 156), source)
+    draw_texture_rect_region(texture, Rect2(-78, -78, 156, 156), source, world_modulate)
     draw_set_transform(Vector2.ZERO)
 
 func _hazard_texture_for(skin: String) -> Texture2D:

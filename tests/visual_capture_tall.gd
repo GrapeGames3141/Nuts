@@ -69,6 +69,8 @@ func _init() -> void:
     scene._start_level(45)
     scene._spawn_event({"kind":"acorn", "family":"acorn", "variant":scene.logic.current_variant(), "lane":4, "speed":620.0})
     scene.drops[0].y = 760.0
+    scene._spawn_event({"kind":"acorn", "family":"acorn", "variant":(scene.logic.current_variant() + 1) % 4, "lane":0, "speed":560.0})
+    scene.drops[1].y = 500.0
     await _capture(scene, "play45_firefly_night")
     scene._start_level(50)
     scene._spawn_event({"kind":"lightning", "warning":0.85, "duration":0.22})
