@@ -1,0 +1,16 @@
+{
+  "_comment": "Nuts closed test: Android uses the official Google test banner, never a production unit.",
+  "ads_enabled": true,
+  "android_ads_enabled": true,
+  "ios_ads_enabled": false,
+  "products": {
+    "nuts": {
+      "android_banner_unit_id": "ca-app-pub-3940256099942544/6300978111",
+      "ios_banner_unit_id": "ca-app-pub-3940256099942544/2435281174"
+    }
+  },
+  "child_directed": false,
+  "tag_for_under_age_of_consent": false,
+  "max_ad_content_rating": "PG",
+  "banner_height_dp": 60
+}

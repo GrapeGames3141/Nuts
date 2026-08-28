@@ -139,6 +139,7 @@ var crossing_time := 0.0
 var crossing_target_page := 1
 var crossing_start_page := 1
 var mouse_left_down := false
+var validation_ad_reserve := 0.0
 
 func _ready() -> void:
     rng.seed = 84519
@@ -170,6 +171,9 @@ func _ready() -> void:
     _load_save()
     _make_squirrel()
     _make_audio()
+    var ad_service := get_node_or_null("/root/AdBarService")
+    if ad_service != null:
+        ad_service.call_deferred("attach_to", self)
     queue_redraw()
 
 func _make_audio() -> void:
@@ -316,6 +320,7 @@ func _map_can_navigate(direction: int) -> bool:
 func _apply_screen_squirrel() -> void:
     if title_squirrel != null:
         title_squirrel.visible = screen == "title"
+        title_squirrel.position = _title_squirrel_position()
     if results_squirrel != null:
         results_squirrel.visible = screen == "results"
         results_squirrel.position = RESULTS_SQUIRREL_POSITION
@@ -616,6 +621,8 @@ func _unhandled_input(event: InputEvent) -> void:
     var mouse_drag: bool = event is InputEventMouseMotion and mouse_left_down
     if press or drag or mouse or mouse_drag:
         var point: Vector2 = event.position
+        if _point_is_in_ad_reserve(point):
+            return
         if screen == "map" and crossing_time > 0.0:
             return
         if screen == "play":
@@ -658,8 +665,25 @@ func _background_for(background_id: String) -> Texture2D:
 func _play_limb_texture_for(theme: Dictionary) -> Texture2D:
     return play_limb_day_texture if str(theme.get("play_limb_skin", "sway")) == "day" else play_limb_texture
 
+func _ad_bottom_reserve() -> float:
+    if validation_ad_reserve > 0.0:
+        return validation_ad_reserve
+    var ad_service := get_node_or_null("/root/AdBarService")
+    if ad_service == null or not ad_service.has_method("banner_height"):
+        return 0.0
+    return maxf(0.0, float(ad_service.call("banner_height")))
+
+func _content_bottom_y() -> float:
+    return H - _ad_bottom_reserve()
+
+func _point_is_in_ad_reserve(point: Vector2) -> bool:
+    return _ad_bottom_reserve() > 0.0 and point.y >= _content_bottom_y()
+
+func _title_squirrel_position() -> Vector2:
+    return TITLE_SQUIRREL_POSITION - Vector2(0.0, _ad_bottom_reserve())
+
 func _play_surface_y() -> float:
-    return GROUND_LINE_Y + _branch_y_offset()
+    return GROUND_LINE_Y - _ad_bottom_reserve() + _branch_y_offset()
 
 func _catch_y() -> float:
     return _play_surface_y() - (GROUND_LINE_Y - FLOOR_Y)
@@ -843,6 +867,15 @@ func _draw() -> void:
     elif screen == "settings": _draw_settings()
     elif screen == "results": _draw_results()
     else: _draw_game()
+    _draw_ad_reserve()
+
+func _draw_ad_reserve() -> void:
+    var reserve := _ad_bottom_reserve()
+    if reserve <= 0.0:
+        return
+    var top := _content_bottom_y()
+    draw_rect(Rect2(0.0, top, W, reserve), Color("#10241f", 0.98))
+    draw_line(Vector2(0.0, top), Vector2(W, top), Color("#d6ba72", 0.34), 2.0)
 
 func _font() -> Font:
     return ThemeDB.fallback_font
@@ -989,7 +1022,7 @@ func _results_squirrel_visual_rect() -> Rect2:
     return Rect2(top_left, alpha_bounds.size * RESULTS_SQUIRREL_SCALE)
 
 func _title_squirrel_visual_rect() -> Rect2:
-    var top_left := TITLE_SQUIRREL_POSITION + (TITLE_SQUIRREL_SOURCE_BOUNDS.position - TITLE_SQUIRREL_SOURCE_SIZE * 0.5) * TITLE_SQUIRREL_SCALE
+    var top_left := _title_squirrel_position() + (TITLE_SQUIRREL_SOURCE_BOUNDS.position - TITLE_SQUIRREL_SOURCE_SIZE * 0.5) * TITLE_SQUIRREL_SCALE
     return Rect2(top_left, TITLE_SQUIRREL_SOURCE_BOUNDS.size * TITLE_SQUIRREL_SCALE)
 
 func _draw_game() -> void:

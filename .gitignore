@@ -6,4 +6,5 @@
 build/*
 !build/.gdignore
 android/build/
+config/admob.json
 *.log

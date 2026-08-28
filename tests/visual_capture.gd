@@ -30,6 +30,12 @@ func _init() -> void:
         scene.screen = "map"; scene.map_page = 3; await capture(scene, "tree3", size)
         scene.map_page = 4; await capture(scene, "tree4", size)
         scene.map_page = 5; await capture(scene, "tree5", size)
+        scene.validation_ad_reserve = 140.0
+        scene.screen = "title"; scene._apply_screen_squirrel(); await capture(scene, "title_ad_reserve", size)
+        scene.screen = "map"; scene.map_page = 5; await capture(scene, "tree5_ad_reserve", size)
+        scene._start_level(24); await capture(scene, "play24_ad_reserve", size)
+        scene.logic.progress = scene.logic.recipe.size(); scene._finish_level(); await capture(scene, "results_ad_reserve", size)
+        scene.validation_ad_reserve = 0.0
         scene.screen = "settings"; await capture(scene, "settings", size)
         scene._start_level(1); await capture(scene, "play01", size)
         scene._start_level(6)
