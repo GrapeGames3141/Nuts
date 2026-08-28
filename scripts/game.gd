@@ -16,11 +16,11 @@ const RESULTS_MEDALLION_CENTER := Vector2(540.0, 710.0)
 const RESULTS_MEDALLION_RADIUS := 296.0
 const RESULTS_RIBBON_RECT := Rect2(175.0, 1040.0, 730.0, 82.0)
 const RESULTS_BUTTON_RECTS := [Rect2(210.0, 1335.0, 660.0, 92.0), Rect2(210.0, 1447.0, 660.0, 92.0), Rect2(210.0, 1559.0, 660.0, 92.0)]
-const RESULTS_SQUIRREL_POSITION := Vector2(500.0, 840.0)
-const RESULTS_SQUIRREL_SCALE := 1.25
-const RESULTS_SQUIRREL_SOURCE_BOUNDS := Rect2(130.0, 29.0, 251.0, 274.0)
+const RESULTS_SQUIRREL_POSITION := Vector2(470.0, 795.0)
+const RESULTS_SQUIRREL_SCALE := 1.42
+const RESULTS_SQUIRREL_HEADROOM := 18.0
 const RESULTS_CARRY_SIZE := 74.0
-const RESULTS_CARRY_BASE_OFFSET := Vector2(140.0, -25.0)
+const RESULTS_CARRY_ANCHOR := Vector2(640.0, 795.0)
 const RESULTS_CARRY_STEP_Y := 45.0
 const MAP_PAGE_LEVELS := 10
 const MAP_PAGE_COUNT := 2
@@ -104,6 +104,7 @@ var player_x := LANE_X[2]
 var player_target_x := player_x
 var squirrel: AnimatedSprite2D
 var title_squirrel: Sprite2D
+var results_squirrel: Sprite2D
 var carry_sprites: Array[Sprite2D] = []
 var sheet: Texture2D
 var background: Texture2D
@@ -116,6 +117,7 @@ var leaf_texture: Texture2D
 var yellow_leaf_texture: Texture2D
 var needle_texture: Texture2D
 var title_squirrel_texture: Texture2D
+var results_squirrel_texture: Texture2D
 var bark_texture: Texture2D
 var pause_log_texture: Texture2D
 var moss_texture: Texture2D
@@ -153,6 +155,7 @@ func _ready() -> void:
     yellow_leaf_texture = load("res://assets/art/items/leaf_yellow_clean_v1.png")
     needle_texture = load("res://assets/art/items/pine_needle_cluster_v1.png")
     title_squirrel_texture = load("res://assets/art/squirrel_front_acorn_v1.png")
+    results_squirrel_texture = load("res://assets/art/squirrel_idle_head_repair_v1.png")
     bark_texture = load("res://assets/art/ui_textures/oak_bark_tile_v1.png")
     pause_log_texture = load("res://assets/art/ui_textures/pause_log_v1.png")
     moss_texture = load("res://assets/art/ui_textures/moss_panel_tile_v1.png")
@@ -225,6 +228,17 @@ func _make_squirrel() -> void:
     title_squirrel.z_index = 1
     title_squirrel.visible = false
     add_child(title_squirrel)
+    # The packed pop frames have baked-in clipped ears. Results uses the dedicated
+    # full-ear celebratory artwork instead, while gameplay retains its own sheet.
+    results_squirrel = Sprite2D.new()
+    results_squirrel.name = "ResultsCelebrationSquirrel"
+    results_squirrel.texture = results_squirrel_texture
+    results_squirrel.centered = true
+    results_squirrel.position = RESULTS_SQUIRREL_POSITION
+    results_squirrel.scale = Vector2.ONE * RESULTS_SQUIRREL_SCALE
+    results_squirrel.z_index = 1
+    results_squirrel.visible = false
+    add_child(results_squirrel)
 
 func _sheet_frame(index: int) -> Texture2D:
     if sheet == null: return null
@@ -294,15 +308,16 @@ func _map_can_navigate(direction: int) -> bool:
 func _apply_screen_squirrel() -> void:
     if title_squirrel != null:
         title_squirrel.visible = screen == "title"
+    if results_squirrel != null:
+        results_squirrel.visible = screen == "results"
+        results_squirrel.position = RESULTS_SQUIRREL_POSITION
+        results_squirrel.scale = Vector2.ONE * RESULTS_SQUIRREL_SCALE
+        results_squirrel.rotation = 0.0
     if screen == "title":
         squirrel.visible = false
     elif screen == "results":
-        squirrel.visible = true
-        squirrel.position = RESULTS_SQUIRREL_POSITION
-        squirrel.scale = Vector2.ONE * RESULTS_SQUIRREL_SCALE
-        squirrel.rotation = 0.0
-        squirrel.flip_h = false
-        if squirrel.animation != "pop": squirrel.play("pop")
+        # Never show the clipped sheet animation behind the repair artwork.
+        squirrel.visible = false
     else:
         squirrel.visible = screen == "play" or screen == "recover"
 
@@ -801,10 +816,16 @@ func _draw_results() -> void:
     _draw_leaf_button(RESULTS_BUTTON_RECTS[2], "TREE TRAIL", true, Color("#5f8958"))
 
 func _results_squirrel_visual_rect() -> Rect2:
-    # Union of packed pop frames 11 and 8. Keeping this explicit ties the
-    # celebration layout to the actual alpha artwork rather than its cell size.
-    var top_left := RESULTS_SQUIRREL_POSITION + (RESULTS_SQUIRREL_SOURCE_BOUNDS.position - Vector2(256.0, 256.0)) * RESULTS_SQUIRREL_SCALE
-    return Rect2(top_left, RESULTS_SQUIRREL_SOURCE_BOUNDS.size * RESULTS_SQUIRREL_SCALE)
+    # Use the repair image's real alpha footprint, never the clipped packed cells.
+    if results_squirrel_texture == null:
+        return Rect2()
+    var source_image := results_squirrel_texture.get_image()
+    if source_image == null:
+        return Rect2()
+    var source_size := Vector2(source_image.get_size())
+    var alpha_bounds := Rect2(source_image.get_used_rect())
+    var top_left := RESULTS_SQUIRREL_POSITION + (alpha_bounds.position - source_size * 0.5) * RESULTS_SQUIRREL_SCALE
+    return Rect2(top_left, alpha_bounds.size * RESULTS_SQUIRREL_SCALE)
 
 func _title_squirrel_visual_rect() -> Rect2:
     var top_left := TITLE_SQUIRREL_POSITION + (TITLE_SQUIRREL_SOURCE_BOUNDS.position - TITLE_SQUIRREL_SOURCE_SIZE * 0.5) * TITLE_SQUIRREL_SCALE
@@ -923,10 +944,10 @@ func _update_carry_stack() -> void:
         var wobble := sin(elapsed * 5.0 + i * 1.7) * 0.11
         if screen == "results":
             # The completed recipe rests on the celebratory raised paw. It remains
-            # in front of the pop sprite, with a small alternating lean instead of
+            # in front of the repair sprite, with a small alternating lean instead of
             # cutting through the face or the carved heading.
-            var result_offset := RESULTS_CARRY_BASE_OFFSET + Vector2((i % 2) * 10.0 - 4.0, -i * RESULTS_CARRY_STEP_Y)
-            carried.position = RESULTS_SQUIRREL_POSITION + result_offset
+            var result_offset := Vector2((i % 2) * 10.0 - 4.0, -i * RESULTS_CARRY_STEP_Y)
+            carried.position = RESULTS_CARRY_ANCHOR + result_offset
             carried.rotation = wobble + (-0.08 if i % 2 == 0 else 0.08)
         else:
             # Attach to the raised paw-side, not the face. On lane 4 the stack
