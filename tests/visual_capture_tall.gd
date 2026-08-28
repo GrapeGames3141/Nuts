@@ -48,6 +48,7 @@ func _init() -> void:
     scene.logic.progress = scene.logic.recipe.size()
     scene._finish_level()
     await _capture(scene, "results_acorn")
+    await _capture(scene, "results_full_ears")
     await _capture(scene, "results_ring_focus")
     scene._start_level(19)
     scene.logic.progress = scene.logic.recipe.size()
