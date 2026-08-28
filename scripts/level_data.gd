@@ -63,15 +63,15 @@ static func recipe_for(level_number: int) -> Array:
 static func theme_for(level_number: int) -> Dictionary:
     if level_number <= THEMES.size(): return THEMES[level_number - 1].duplicate()
     var family := "acorn" if level_number % 2 == 1 else "pinecone"
-    var theme := {"id":"canopy_day", "background":"high_canopy_day", "family":family, "minor":"leaf" if family == "acorn" else "needle", "major":"", "ambient":false, "fall_speed_mode":"mixed", "branch_mode":"stationary"}
+    var theme := {"id":"canopy_day", "background":"high_canopy_day", "family":family, "minor":"leaf" if family == "acorn" else "needle", "major":"", "ambient":false, "fall_speed_mode":"mixed", "play_limb":true, "play_limb_skin":"day", "branch_mode":"stationary"}
     if level_number >= 26 and level_number <= 30: theme.gusts = true
     if level_number >= 31 and level_number <= 35: theme.predators = true
     if level_number >= 36 and level_number <= 40:
-        theme.id = "canopy_limb"; theme.play_limb = true; theme.branch_mode = "sway"
+        theme.id = "canopy_limb"; theme.play_limb = true; theme.play_limb_skin = "sway"; theme.branch_mode = "sway"
     if level_number >= 41 and level_number <= 45:
-        theme.id = "canopy_night"; theme.background = "high_canopy_night"; theme.night = true; theme.fireflies = true; theme.play_limb = true; theme.branch_mode = "sway"
+        theme.id = "canopy_night"; theme.background = "high_canopy_night"; theme.night = true; theme.fireflies = true; theme.play_limb = true; theme.play_limb_skin = "sway"; theme.branch_mode = "sway"
     if level_number >= 46:
-        theme.id = "canopy_storm"; theme.background = "high_canopy_storm"; theme.lightning = true; theme.play_limb = true; theme.branch_mode = "sway"; theme.finale_stage = level_number - 45
+        theme.id = "canopy_storm"; theme.background = "high_canopy_storm"; theme.lightning = true; theme.play_limb = true; theme.play_limb_skin = "sway"; theme.branch_mode = "sway"; theme.finale_stage = level_number - 45
         if level_number >= 47: theme.gusts = true
         if level_number >= 48: theme.predators = true
         if level_number >= 49: theme.night = true; theme.fireflies = true

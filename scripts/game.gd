@@ -109,6 +109,7 @@ var branch_texture: Texture2D
 var leaf_texture: Texture2D
 var yellow_leaf_texture: Texture2D
 var needle_texture: Texture2D
+var play_limb_day_texture: Texture2D
 var play_limb_texture: Texture2D
 var hawk_texture: Texture2D
 var owl_texture: Texture2D
@@ -152,6 +153,7 @@ func _ready() -> void:
     leaf_texture = load("res://assets/art/items/leaf_strip.png")
     yellow_leaf_texture = load("res://assets/art/items/leaf_yellow_clean_v1.png")
     needle_texture = load("res://assets/art/items/pine_needle_cluster_v1.png")
+    play_limb_day_texture = load("res://assets/art/canopy/play_limb_day_v1.png")
     play_limb_texture = load("res://assets/art/canopy/play_limb_v1.png")
     hawk_texture = load("res://assets/art/canopy/hawk_swoop_v1.png")
     owl_texture = load("res://assets/art/canopy/owl_swoop_v1.png")
@@ -653,6 +655,9 @@ func _background_for(background_id: String) -> Texture2D:
     }
     return load(paths.get(background_id, paths.summer_oak))
 
+func _play_limb_texture_for(theme: Dictionary) -> Texture2D:
+    return play_limb_day_texture if str(theme.get("play_limb_skin", "sway")) == "day" else play_limb_texture
+
 func _play_surface_y() -> float:
     return GROUND_LINE_Y + _branch_y_offset()
 
@@ -990,7 +995,7 @@ func _title_squirrel_visual_rect() -> Rect2:
 func _draw_game() -> void:
     var theme: Dictionary = definition.get("theme", {})
     if bool(theme.get("play_limb", false)):
-        var limb_texture: Texture2D = play_limb_texture
+        var limb_texture: Texture2D = _play_limb_texture_for(theme)
         if limb_texture != null: draw_texture_rect(limb_texture, Rect2(0.0, _play_surface_y() - 250.0, PLAY_RIGHT, 340.0), false)
     if bool(theme.get("night", false)):
         # The painted background and play limb stay clear; only falling world

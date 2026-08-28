@@ -99,8 +99,12 @@ func _init() -> void:
         var canopy_repeat := LevelData.make(level, 1234)
         expect(canopy == canopy_repeat, "level %d repeats deterministically" % level)
         expect(LevelData.validate(canopy) and GameLogic.simulate_level(level, 1234), "level %d deterministic schedule is safe" % level)
+        if level <= 20:
+            expect(not bool(canopy.theme.get("play_limb", false)), "legacy level %d keeps its painted ground" % level)
         if level >= 21:
             expect(canopy.recipe.size() == 5 and canopy.theme.fall_speed_mode == "mixed", "canopy level %d has five mixed-speed items" % level)
+            if level <= 35:
+                expect(canopy.theme.play_limb and canopy.theme.play_limb_skin == "day" and canopy.theme.branch_mode == "stationary", "level %d uses the stationary day limb" % level)
             var acorn_speeds: Array[float] = []
             for speed_event in canopy.events:
                 if speed_event.kind == "acorn": acorn_speeds.append(float(speed_event.speed))
@@ -114,7 +118,7 @@ func _init() -> void:
         if level >= 31 and level <= 35:
             expect(canopy.events.any(func(event): return event.kind == "predator" and event.warning >= 1.2 and event.lane >= 0 and event.lane < 5), "level %d predator has a fixed warned lane" % level)
         if level >= 36 and level <= 40:
-            expect(canopy.theme.play_limb and canopy.theme.branch_mode == "sway", "level %d uses the swaying play limb" % level)
+            expect(canopy.theme.play_limb and canopy.theme.play_limb_skin == "sway" and canopy.theme.branch_mode == "sway", "level %d uses the swaying play limb" % level)
         if level >= 41 and level <= 45:
             expect(canopy.theme.night and canopy.theme.fireflies and canopy.theme.background == "high_canopy_night", "level %d uses night fireflies" % level)
         if level >= 46:

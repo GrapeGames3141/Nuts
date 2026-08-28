@@ -45,6 +45,7 @@ func _init() -> void:
     scene.drops = [{"kind":"leaf", "skin":"leaf", "variant":3, "x":scene.LANE_X[2], "base_x":scene.LANE_X[2], "y":710.0, "speed":0.0, "rotation":0.18, "scale":1.0, "wobble":0.0, "seed":0.0, "age":0.0}]
     await _capture(scene, "leaf_yellow_clean")
     scene.drops.clear()
+    scene._start_level(24); await _capture(scene, "play24_stationary_limb")
     scene._start_level(25)
     scene._spawn_event({"kind":"acorn", "family":"acorn", "variant":0, "lane":1, "speed":420.0})
     scene._spawn_event({"kind":"acorn", "family":"acorn", "variant":2, "lane":3, "speed":860.0})

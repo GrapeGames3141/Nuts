@@ -43,6 +43,7 @@ func _init() -> void:
         scene._start_level(11); await capture(scene, "play11", size)
         scene.logic.progress = 5; scene._update_carry_stack(); await capture(scene, "carry5", size)
         scene._start_level(20); await capture(scene, "play20", size)
+        scene._start_level(24); await capture(scene, "play24_stationary_limb", size)
         scene._start_level(25)
         scene._spawn_event({"kind":"acorn", "family":"acorn", "variant":0, "lane":1, "speed":420.0})
         scene._spawn_event({"kind":"acorn", "family":"acorn", "variant":2, "lane":3, "speed":860.0})

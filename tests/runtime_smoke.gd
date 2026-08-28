@@ -367,8 +367,13 @@ func _init() -> void:
     scene._update_recovery(0.0)
     assert(scene.screen == "play" and not scene.logic.restarted and scene.level_number == 35)
 
-    # The legacy surface is stationary; canopy limb levels sway coherently and gently.
+    # Painted-ground levels and the new day limb are stationary; later canopy limbs sway coherently and gently.
+    scene._start_level(20)
+    assert(not bool(scene.definition.theme.get("play_limb", false)))
+    scene._start_level(24)
     scene.elapsed = 1.0
+    assert(scene.definition.theme.play_limb and scene.definition.theme.play_limb_skin == "day")
+    assert(scene._play_limb_texture_for(scene.definition.theme) == scene.play_limb_day_texture)
     assert(is_equal_approx(scene._play_surface_y(), scene.GROUND_LINE_Y))
     scene._start_level(36)
     scene.elapsed = 0.0
@@ -376,9 +381,11 @@ func _init() -> void:
     scene.elapsed = PI / (2.0 * 1.65)
     var surface_peak: float = scene._play_surface_y()
     assert(absf(surface_peak - surface_start) > 10.0 and absf(surface_peak - scene.GROUND_LINE_Y) <= 16.1)
+    assert(scene.definition.theme.play_limb_skin == "sway")
+    assert(scene._play_limb_texture_for(scene.definition.theme) == scene.play_limb_texture)
     scene._reset_squirrel_visual()
     assert(is_equal_approx(scene.squirrel.position.y, surface_peak - scene.SQUIRREL_FOOT_OFFSET))
-    assert(scene.play_limb_texture != null and scene.hawk_texture != null and scene.owl_texture != null)
+    assert(scene.play_limb_day_texture != null and scene.play_limb_texture != null and scene.hawk_texture != null and scene.owl_texture != null)
     assert(scene.firefly_swarm_texture != null and scene.lightning_fx_texture != null)
 
     # Night fireflies occupy five staggered upper-canopy lanes and never follow the squirrel.
