@@ -664,7 +664,19 @@ func _firefly_centers() -> Array[Vector2]:
         if drop.kind == "acorn" and int(drop.variant) == logic.current_variant():
             target_lane = int(drop.lane)
             break
-    return [Vector2(player_x + sin(elapsed * 1.7) * 42.0, _play_surface_y() - 190.0), Vector2(LANE_X[target_lane] + cos(elapsed * 2.1) * 42.0, 880.0 + sin(elapsed * 1.4) * 130.0)]
+    var player_light := Vector2(
+        player_x + sin(elapsed * 1.31) * 94.0 + sin(elapsed * 2.83 + 0.7) * 28.0,
+        _play_surface_y() - 210.0 + cos(elapsed * 1.67) * 76.0 + sin(elapsed * 0.73 + 0.4) * 34.0
+    )
+    var target_light := Vector2(
+        LANE_X[target_lane] + cos(elapsed * 1.09 + 0.8) * 108.0 + sin(elapsed * 2.47) * 34.0,
+        830.0 + sin(elapsed * 1.43 + 1.2) * 176.0 + cos(elapsed * 0.61) * 58.0
+    )
+    player_light.x = clampf(player_light.x, 70.0, PLAY_RIGHT - 70.0)
+    player_light.y = clampf(player_light.y, SAFE_TOP + 180.0, _play_surface_y() - 74.0)
+    target_light.x = clampf(target_light.x, 70.0, PLAY_RIGHT - 70.0)
+    target_light.y = clampf(target_light.y, SAFE_TOP + 250.0, _play_surface_y() - 120.0)
+    return [player_light, target_light]
 
 func _night_visibility_at(point: Vector2) -> float:
     if not bool(definition.get("theme", {}).get("night", false)):
@@ -967,7 +979,8 @@ func _draw_game() -> void:
         var limb_texture: Texture2D = play_limb_texture
         if limb_texture != null: draw_texture_rect(limb_texture, Rect2(0.0, _play_surface_y() - 250.0, PLAY_RIGHT, 340.0), false)
     if bool(theme.get("night", false)):
-        draw_rect(Rect2(0, SAFE_TOP, PLAY_RIGHT, H - SAFE_TOP), Color("#061027", 0.48))
+        # The painted background and play limb stay clear; only falling world
+        # sprites receive distance-based night modulation in _draw_drop().
         _draw_firefly_lighting()
     _draw_lightning_vfx()
     if bool(definition.get("theme", {}).get("ambient", false)):
@@ -983,7 +996,6 @@ func _draw_game() -> void:
         _draw_drop(drop)
     for particle in particles:
         draw_circle(particle.p, 7.0 * particle.life + 2.0, particle.color)
-    draw_line(Vector2(55,_play_surface_y()), Vector2(PLAY_RIGHT,_play_surface_y()), Color("#6a4a31"), 12)
     if status_time > 0.0:
         _panel(Rect2(80, 1290, 700, 90), Color("#315443",0.93))
         _text(status_text, Vector2(105, 1350), 35, Color("#fff5cc"), HORIZONTAL_ALIGNMENT_CENTER, 650)

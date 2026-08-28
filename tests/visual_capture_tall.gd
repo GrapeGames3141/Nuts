@@ -67,8 +67,9 @@ func _init() -> void:
     scene._start_level(40); scene.elapsed = PI / (2.0 * 1.65)
     await _capture(scene, "play40_swaying_limb")
     scene._start_level(45)
+    scene.elapsed = 0.0
     scene._spawn_event({"kind":"acorn", "family":"acorn", "variant":scene.logic.current_variant(), "lane":4, "speed":620.0})
-    scene.drops[0].y = 760.0
+    scene.drops[0].y = 1050.0
     scene._spawn_event({"kind":"acorn", "family":"acorn", "variant":(scene.logic.current_variant() + 1) % 4, "lane":0, "speed":560.0})
     scene.drops[1].y = 500.0
     await _capture(scene, "play45_firefly_night")

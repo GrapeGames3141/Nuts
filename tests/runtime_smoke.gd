@@ -388,14 +388,22 @@ func _init() -> void:
     scene.drops = [lit_target]
     scene.elapsed = 0.0
     var lights_a: Array[Vector2] = scene._firefly_centers()
-    scene.elapsed = 0.8
+    scene.elapsed = 1.6
     var lights_b: Array[Vector2] = scene._firefly_centers()
-    assert(lights_a.size() == 2 and lights_a[0].x >= scene.player_x - 43.0 and absf(lights_a[1].x - scene.LANE_X[4]) <= 43.0)
-    assert(lights_a != lights_b)
+    assert(lights_a.size() == 2)
+    assert(lights_a[0].x >= 70.0 and lights_a[0].x <= scene.PLAY_RIGHT - 70.0)
+    assert(lights_a[1].x >= 70.0 and lights_a[1].x <= scene.PLAY_RIGHT - 70.0)
+    assert(lights_a[0].distance_to(lights_b[0]) > 90.0)
+    assert(lights_a[1].distance_to(lights_b[1]) > 180.0)
     scene.elapsed = 0.0
     var target_light_center: Vector2 = scene._firefly_centers()[1]
     var far_dark_point := Vector2(80.0, 500.0)
-    assert(scene._night_visibility_at(target_light_center) > 0.99)
+    var away_from_player: Vector2 = (target_light_center - lights_a[0]).normalized()
+    var midpoint: Vector2 = target_light_center + away_from_player * scene.FIREFLY_LIGHT_RADIUS * 0.5
+    var center_visibility: float = scene._night_visibility_at(target_light_center)
+    var midpoint_visibility: float = scene._night_visibility_at(midpoint)
+    assert(center_visibility > 0.99)
+    assert(midpoint_visibility < center_visibility and midpoint_visibility > scene.NIGHT_BASE_VISIBILITY + 0.15)
     assert(scene._night_visibility_at(far_dark_point) <= scene.NIGHT_BASE_VISIBILITY + 0.01)
     assert(scene._night_world_modulate(far_dark_point).r < 0.30)
     scene.lightning_flash = 0.22
