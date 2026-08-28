@@ -78,7 +78,8 @@ const UI_LEAF_BUTTON_SIZE := 42.0
 const UI_LEAF_RESULT_SIZE := 70.0
 const UI_LEAF_GEAR_SIZE := 30.0
 const NIGHT_BASE_VISIBILITY := 0.24
-const FIREFLY_LIGHT_RADIUS := 260.0
+const FIREFLY_LIGHT_RADIUS := 520.0
+const FIREFLY_STAGGER_Y := [350.0, 470.0, 390.0, 530.0, 430.0]
 var screen := "title"
 var level_number := 1
 var map_page := 1
@@ -659,24 +660,15 @@ func _catch_y() -> float:
     return _play_surface_y() - (GROUND_LINE_Y - FLOOR_Y)
 
 func _firefly_centers() -> Array[Vector2]:
-    var target_lane := player_lane
-    for drop in drops:
-        if drop.kind == "acorn" and int(drop.variant) == logic.current_variant():
-            target_lane = int(drop.lane)
-            break
-    var player_light := Vector2(
-        player_x + sin(elapsed * 1.31) * 94.0 + sin(elapsed * 2.83 + 0.7) * 28.0,
-        _play_surface_y() - 210.0 + cos(elapsed * 1.67) * 76.0 + sin(elapsed * 0.73 + 0.4) * 34.0
-    )
-    var target_light := Vector2(
-        LANE_X[target_lane] + cos(elapsed * 1.09 + 0.8) * 108.0 + sin(elapsed * 2.47) * 34.0,
-        830.0 + sin(elapsed * 1.43 + 1.2) * 176.0 + cos(elapsed * 0.61) * 58.0
-    )
-    player_light.x = clampf(player_light.x, 70.0, PLAY_RIGHT - 70.0)
-    player_light.y = clampf(player_light.y, SAFE_TOP + 180.0, _play_surface_y() - 74.0)
-    target_light.x = clampf(target_light.x, 70.0, PLAY_RIGHT - 70.0)
-    target_light.y = clampf(target_light.y, SAFE_TOP + 250.0, _play_surface_y() - 120.0)
-    return [player_light, target_light]
+    var centers: Array[Vector2] = []
+    for lane in LANE_X.size():
+        var phase := float(lane) * 1.43
+        var x: float = LANE_X[lane] + sin(elapsed * (1.0 + lane * 0.07) + phase) * 34.0 + sin(elapsed * 2.37 + phase * 0.61) * 12.0
+        var y: float = FIREFLY_STAGGER_Y[lane] + cos(elapsed * (1.18 + lane * 0.05) + phase) * 42.0 + sin(elapsed * 0.63 + phase * 0.47) * 18.0
+        var lane_left: float = 70.0 if lane == 0 else (LANE_X[lane - 1] + LANE_X[lane]) * 0.5 + 12.0
+        var lane_right: float = PLAY_RIGHT - 70.0 if lane == LANE_X.size() - 1 else (LANE_X[lane] + LANE_X[lane + 1]) * 0.5 - 12.0
+        centers.append(Vector2(clampf(x, lane_left, lane_right), clampf(y, SAFE_TOP + 150.0, 900.0)))
+    return centers
 
 func _night_visibility_at(point: Vector2) -> float:
     if not bool(definition.get("theme", {}).get("night", false)):
@@ -708,12 +700,9 @@ func _draw_firefly_lighting() -> void:
     for i in centers.size():
         var p: Vector2 = centers[i]
         var pulse := 0.5 + 0.5 * sin(elapsed * 2.8 + i * 1.9)
-        # Broad restrained pools preserve useful visibility around the squirrel and
-        # current recipe target; the painted insects provide the natural detail.
-        draw_circle(p, 124.0 + pulse * 12.0, Color("#d5ef83", 0.075 + pulse * 0.025))
-        draw_circle(p, 58.0 + pulse * 7.0, Color("#e8f59a", 0.10 + pulse * 0.035))
+        # Draw only the painted swarm; illumination is applied to falling sprites by distance.
         if firefly_swarm_texture != null:
-            var fx_size := Vector2.ONE * (286.0 + pulse * 18.0)
+            var fx_size := Vector2.ONE * (156.0 + pulse * 12.0)
             draw_set_transform(p, sin(elapsed * 0.7 + i) * 0.055)
             draw_texture_rect(firefly_swarm_texture, Rect2(-fx_size * 0.5, fx_size), false, Color(1.0, 1.0, 1.0, 0.64 + pulse * 0.18))
             draw_set_transform(Vector2.ZERO)

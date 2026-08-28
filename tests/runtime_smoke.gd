@@ -381,26 +381,37 @@ func _init() -> void:
     assert(scene.play_limb_texture != null and scene.hawk_texture != null and scene.owl_texture != null)
     assert(scene.firefly_swarm_texture != null and scene.lightning_fx_texture != null)
 
-    # Night fireflies track the player and current required target; lightning changes visibility only.
+    # Night fireflies occupy five staggered upper-canopy lanes and never follow the squirrel.
     scene._start_level(45)
     assert(scene.definition.theme.night and scene.definition.theme.fireflies)
-    var lit_target := {"kind":"acorn", "variant":scene.logic.current_variant(), "lane":4}
-    scene.drops = [lit_target]
     scene.elapsed = 0.0
-    var lights_a: Array[Vector2] = scene._firefly_centers()
+    scene.player_lane = 0; scene.player_x = scene.LANE_X[0]
+    var lights_player_left: Array[Vector2] = scene._firefly_centers()
+    scene.player_lane = 4; scene.player_x = scene.LANE_X[4]
+    var lights_player_right: Array[Vector2] = scene._firefly_centers()
+    assert(lights_player_left == lights_player_right)
+    var lights_a: Array[Vector2] = lights_player_left
     scene.elapsed = 1.6
     var lights_b: Array[Vector2] = scene._firefly_centers()
-    assert(lights_a.size() == 2)
-    assert(lights_a[0].x >= 70.0 and lights_a[0].x <= scene.PLAY_RIGHT - 70.0)
-    assert(lights_a[1].x >= 70.0 and lights_a[1].x <= scene.PLAY_RIGHT - 70.0)
-    assert(lights_a[0].distance_to(lights_b[0]) > 90.0)
-    assert(lights_a[1].distance_to(lights_b[1]) > 180.0)
+    assert(lights_a.size() == scene.LANE_X.size() and lights_a.size() == 5)
+    assert(is_equal_approx(scene.FIREFLY_LIGHT_RADIUS, 520.0))
+    for lane in lights_a.size():
+        var lane_left: float = 70.0 if lane == 0 else (scene.LANE_X[lane - 1] + scene.LANE_X[lane]) * 0.5 + 12.0
+        var lane_right: float = scene.PLAY_RIGHT - 70.0 if lane == lights_a.size() - 1 else (scene.LANE_X[lane] + scene.LANE_X[lane + 1]) * 0.5 - 12.0
+        assert(lights_a[lane].x >= lane_left and lights_a[lane].x <= lane_right)
+        assert(lights_a[lane].y >= scene.SAFE_TOP + 150.0 and lights_a[lane].y <= 900.0)
+        assert(lights_a[lane].distance_to(lights_b[lane]) > 20.0)
+    assert(lights_a[0].y < lights_a[1].y and lights_a[2].y < lights_a[1].y)
+    assert(lights_a[2].y < lights_a[3].y and lights_a[4].y < lights_a[3].y)
     scene.elapsed = 0.0
-    var target_light_center: Vector2 = scene._firefly_centers()[1]
-    var far_dark_point := Vector2(80.0, 500.0)
-    var away_from_player: Vector2 = (target_light_center - lights_a[0]).normalized()
-    var midpoint: Vector2 = target_light_center + away_from_player * scene.FIREFLY_LIGHT_RADIUS * 0.5
-    var center_visibility: float = scene._night_visibility_at(target_light_center)
+    var light_center: Vector2 = scene._firefly_centers()[0]
+    var cluster_center := Vector2.ZERO
+    for index in range(1, 5): cluster_center += scene._firefly_centers()[index]
+    cluster_center /= 4.0
+    var away_from_cluster: Vector2 = (light_center - cluster_center).normalized()
+    var midpoint: Vector2 = light_center + away_from_cluster * scene.FIREFLY_LIGHT_RADIUS * 0.5
+    var far_dark_point := Vector2(scene.LANE_X[2], scene._play_surface_y() - 80.0)
+    var center_visibility: float = scene._night_visibility_at(light_center)
     var midpoint_visibility: float = scene._night_visibility_at(midpoint)
     assert(center_visibility > 0.99)
     assert(midpoint_visibility < center_visibility and midpoint_visibility > scene.NIGHT_BASE_VISIBILITY + 0.15)
