@@ -74,7 +74,7 @@ func _init() -> void:
     scene.drops[1].y = scene._play_surface_y() - 100.0
     await _capture(scene, "play45_firefly_night")
     scene._start_level(46)
-    scene._spawn_event({"kind":"lightning", "warning":0.85, "duration":LevelData.LIGHTNING_FLASH_DURATION})
+    scene._spawn_event({"kind":"lightning", "warning":LevelData.LIGHTNING_WARNING_DURATION, "duration":LevelData.LIGHTNING_FLASH_DURATION, "variant":2})
     scene.drops[0].age = 0.42
     scene._spawn_event({"kind":"acorn", "family":"pinecone", "variant":scene.logic.current_variant(), "lane":2, "speed":620.0})
     scene.drops[1].y = 700.0

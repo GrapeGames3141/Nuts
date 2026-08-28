@@ -1,7 +1,8 @@
 class_name LevelData
 extends RefCounted
 
-const LIGHTNING_FLASH_DURATION := 0.36
+const LIGHTNING_WARNING_DURATION := 0.85
+const LIGHTNING_FLASH_DURATION := 1.15
 
 const VARIANTS := ["Oak", "Redcap", "Striped", "Gold"]
 const RECIPES := [
@@ -149,11 +150,8 @@ static func make(level_number: int, seed: int = 1) -> Dictionary:
             var predator_lane := choose_safe_predator_lane(rng, target_arrivals, predator_impact)
             if predator_lane >= 0:
                 result.events.append({"time": predator_time, "kind": "predator", "target": false, "lane": predator_lane, "skin": "hawk" if rng.randi() % 2 == 0 else "owl", "warning": 1.45, "speed": speed * 1.05})
-        var schedule_lightning := bool(result.theme.get("lightning", false)) and (
-            (storm_stage == 1 and recipe_index % 2 == 0) or
-            (storm_stage >= 2 and (recipe_index == 0 or recipe_index == 3)))
-        if schedule_lightning:
-            result.events.append({"time": t + 0.25, "kind": "lightning", "target": false, "warning": 0.85, "duration": LIGHTNING_FLASH_DURATION})
+        if bool(result.theme.get("lightning", false)):
+            result.events.append({"time": t + 0.25, "kind": "lightning", "target": false, "warning": LIGHTNING_WARNING_DURATION, "duration": LIGHTNING_FLASH_DURATION, "variant": (recipe_index + storm_stage) % 3})
         t += maxf(2.35, 3.6 - i * 0.08)
     result.events.sort_custom(func(a, b): return a.time < b.time)
     return result
@@ -278,7 +276,9 @@ static func _events_are_safe(level_number: int, events_to_validate: Array) -> bo
             global_telegraphs.append({"start":float(event.time), "end":float(event.time) + float(event.warning)})
         if event.kind == "lightning":
             if float(event.get("warning", 0.0)) < 0.7: return false
-            global_telegraphs.append({"start":float(event.time), "end":float(event.time) + float(event.warning)})
+            # Lightning is an ambient visibility cycle, not a lane-changing
+            # hazard. Its silent bolt build-up may overlap a lane telegraph;
+            # gust and predator warnings still remain mutually exclusive.
         if event.kind == "predator":
             if float(event.get("warning", 0.0)) < 1.2: return false
             if str(event.get("skin", "")) != "hawk" and str(event.get("skin", "")) != "owl": return false

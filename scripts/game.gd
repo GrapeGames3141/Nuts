@@ -434,7 +434,7 @@ func _move_drop(drop: Dictionary, delta: float) -> void:
 
 func _spawn_event(event: Dictionary) -> void:
     if event.kind == "gust" or event.kind == "lightning":
-        drops.append({"kind":event.kind, "phase":"warning", "warning":float(event.warning), "duration":float(event.duration), "direction":int(event.get("direction", 0)), "age":0.0, "y":-120.0})
+        drops.append({"kind":event.kind, "phase":"warning", "warning":float(event.warning), "duration":float(event.duration), "direction":int(event.get("direction", 0)), "variant":int(event.get("variant", 0)), "age":0.0, "y":-120.0})
         return
     var lane: int = event.lane
     var base_x: float = LANE_X[lane]
@@ -712,17 +712,39 @@ func _draw_firefly_lighting() -> void:
         else:
             draw_circle(p, 9.0, Color("#f4ffac", 0.92))
 
+func _lightning_layout_variant() -> int:
+    for drop in drops:
+        if str(drop.get("kind", "")) == "lightning":
+            return posmod(int(drop.get("variant", 0)), 3)
+    return 0
+
+func _lightning_bolt_rects() -> Array[Rect2]:
+    match _lightning_layout_variant():
+        1:
+            return [Rect2(270.0, SAFE_TOP + 20.0, 480.0, 930.0), Rect2(30.0, SAFE_TOP + 300.0, 300.0, 560.0)]
+        2:
+            return [Rect2(145.0, SAFE_TOP + 20.0, 480.0, 930.0), Rect2(5.0, SAFE_TOP + 220.0, 290.0, 600.0), Rect2(500.0, SAFE_TOP + 260.0, 270.0, 560.0)]
+        _:
+            return [Rect2(20.0, SAFE_TOP + 30.0, 470.0, 920.0), Rect2(430.0, SAFE_TOP + 250.0, 310.0, 590.0)]
+
 func _draw_lightning_vfx() -> void:
     var warning_strength := _lightning_warning_strength()
     var flash_strength := clampf(lightning_flash * 4.6, 0.0, 1.0)
     if warning_strength <= 0.0 and flash_strength <= 0.0:
         return
-    # Warning reveals a ghosted strike before the flash. The strike is visual only,
-    # so it cannot create an unavoidable lane hazard.
+    # Ghosted multi-bolt layouts silently telegraph each harmless reveal.
     if lightning_fx_texture != null:
-        var bolt_alpha := maxf(warning_strength * (0.13 + 0.05 * sin(elapsed * 12.0)), flash_strength * 0.92)
-        var bolt_rect := Rect2(70.0, SAFE_TOP + 72.0, 690.0, 1035.0)
-        draw_texture_rect(lightning_fx_texture, bolt_rect, false, Color(0.86, 0.94, 1.0, bolt_alpha))
+        var variant: int = _lightning_layout_variant()
+        var bolt_alpha := maxf(warning_strength * (0.13 + 0.05 * sin(elapsed * 12.0)), flash_strength * 0.88)
+        var bolt_rects: Array[Rect2] = _lightning_bolt_rects()
+        for bolt_index in bolt_rects.size():
+            var bolt_rect: Rect2 = bolt_rects[bolt_index]
+            var mirror_x: float = -1.0 if (bolt_index + variant) % 2 == 1 else 1.0
+            var bolt_rotation: float = (-0.07 + bolt_index * 0.09) * (-1.0 if variant == 1 else 1.0)
+            var copy_alpha: float = bolt_alpha * (1.0 - float(bolt_index) * 0.16)
+            draw_set_transform(bolt_rect.get_center(), bolt_rotation, Vector2(mirror_x, 1.0))
+            draw_texture_rect(lightning_fx_texture, Rect2(-bolt_rect.size * 0.5, bolt_rect.size), false, Color(0.86, 0.94, 1.0, copy_alpha))
+            draw_set_transform(Vector2.ZERO)
     if flash_strength > 0.0:
         draw_rect(Rect2(0, SAFE_TOP, PLAY_RIGHT, H - SAFE_TOP), Color(0.88, 0.95, 1.0, 0.18 + flash_strength * 0.42))
 
@@ -1136,7 +1158,6 @@ func _draw_drop(drop: Dictionary) -> void:
         _text(("WIND ->" if direction_label == "RIGHT" else "<- WIND") if drop.phase == "warning" else "GUST " + direction_label, Vector2(74, 450), 42, Color("#e7f4bf"))
         return
     if drop.kind == "lightning":
-        _text("FLASH!" if drop.phase == "active" else "LIGHTNING SOON", Vector2(74, 500), 42, Color("#fff2b1"))
         return
     if drop.kind == "predator":
         var predator_texture: Texture2D = hawk_texture if str(drop.skin) == "hawk" else owl_texture

@@ -120,7 +120,12 @@ func _init() -> void:
         if level >= 46:
             expect(canopy.theme.lightning and canopy.theme.finale_stage == level - 45 and canopy.theme.branch_mode == "sway", "level %d storm stage metadata" % level)
             var lightning_events: Array = canopy.events.filter(func(event): return event.kind == "lightning")
-            expect(not lightning_events.is_empty() and lightning_events.all(func(event): return is_equal_approx(float(event.duration), LevelData.LIGHTNING_FLASH_DURATION)), "level %d uses the extended lightning flash" % level)
+            expect(lightning_events.size() == canopy.recipe.size() and lightning_events.size() == 5, "level %d schedules lightning on every recipe beat" % level)
+            expect(lightning_events.all(func(event): return is_equal_approx(float(event.warning), LevelData.LIGHTNING_WARNING_DURATION) and is_equal_approx(float(event.duration), LevelData.LIGHTNING_FLASH_DURATION)), "level %d uses balanced warning and flash timing" % level)
+            var lightning_variants := {}
+            for lightning_event in lightning_events: lightning_variants[int(lightning_event.variant)] = true
+            expect(lightning_variants.size() == 3, "level %d cycles all lightning layouts" % level)
+            expect(absf(LevelData.LIGHTNING_FLASH_DURATION / 2.35 - 0.5) < 0.02, "lightning cadence is approximately half bright")
             expect(bool(canopy.theme.get("gusts", false)) == (level >= 47), "storm gust escalation")
             expect(bool(canopy.theme.get("predators", false)) == (level >= 48), "storm predator escalation")
             expect(bool(canopy.theme.get("night", false)) == (level >= 49), "storm night escalation")

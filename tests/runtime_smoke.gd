@@ -434,13 +434,27 @@ func _init() -> void:
     scene.logic.progress = 2
     assert(scene._finale_stage_label() == "FINALE PHASE 3 / 5")
     var flash_collectible := {"kind":"acorn", "phase":"falling", "lane":2, "base_x":scene.LANE_X[2], "x":scene.LANE_X[2]}
-    var lightning := {"kind":"lightning", "phase":"warning", "warning":0.8, "duration":LevelData.LIGHTNING_FLASH_DURATION, "direction":0, "age":0.0, "y":-120.0}
-    scene.drops = [flash_collectible, lightning]
+    scene.drops.clear()
+    scene._spawn_event({"kind":"lightning", "warning":LevelData.LIGHTNING_WARNING_DURATION, "duration":LevelData.LIGHTNING_FLASH_DURATION, "variant":2})
+    var lightning: Dictionary = scene.drops[0]
+    scene.drops.append(flash_collectible)
+    assert(lightning.variant == 2)
+    var layout_two: Array[Rect2] = scene._lightning_bolt_rects()
+    lightning.variant = 0
+    var layout_zero: Array[Rect2] = scene._lightning_bolt_rects()
+    lightning.variant = 1
+    var layout_one: Array[Rect2] = scene._lightning_bolt_rects()
+    lightning.variant = 2
+    assert(layout_zero.size() == 2 and layout_one.size() == 2 and layout_two.size() == 3)
+    assert(layout_zero != layout_one and layout_one != layout_two and layout_zero != layout_two)
+    var bolt_centers := {}
+    for bolt_rect in layout_two: bolt_centers[bolt_rect.get_center()] = true
+    assert(bolt_centers.size() == 3)
     scene.lightning_flash = 0.0
-    scene._move_drop(lightning, 0.4)
+    scene._move_drop(lightning, LevelData.LIGHTNING_WARNING_DURATION * 0.5)
     assert(lightning.phase == "warning" and is_zero_approx(scene.lightning_flash) and flash_collectible.lane == 2)
     assert(scene._lightning_warning_strength() >= 0.49 and scene._lightning_warning_strength() <= 0.51)
-    scene._move_drop(lightning, 0.41)
+    scene._move_drop(lightning, LevelData.LIGHTNING_WARNING_DURATION * 0.5 + 0.01)
     assert(lightning.phase == "active" and is_equal_approx(scene.lightning_flash, LevelData.LIGHTNING_FLASH_DURATION) and flash_collectible.lane == 2)
     scene._start_level(50)
     assert(is_zero_approx(scene.lightning_flash) and scene.drops.is_empty())
