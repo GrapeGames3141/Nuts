@@ -16,8 +16,8 @@ const RESULTS_MEDALLION_CENTER := Vector2(540.0, 710.0)
 const RESULTS_MEDALLION_RADIUS := 296.0
 const RESULTS_RIBBON_RECT := Rect2(175.0, 1040.0, 730.0, 82.0)
 const RESULTS_BUTTON_RECTS := [Rect2(210.0, 1335.0, 660.0, 92.0), Rect2(210.0, 1447.0, 660.0, 92.0), Rect2(210.0, 1559.0, 660.0, 92.0)]
-const RESULTS_SQUIRREL_POSITION := Vector2(470.0, 795.0)
-const RESULTS_SQUIRREL_SCALE := 1.42
+const RESULTS_SQUIRREL_POSITION := Vector2(550.0, 720.0)
+const RESULTS_SQUIRREL_SCALE := 0.42
 const RESULTS_SQUIRREL_HEADROOM := 18.0
 const RESULTS_CARRY_SIZE := 74.0
 const RESULTS_CARRY_ANCHOR := Vector2(640.0, 795.0)
@@ -52,7 +52,7 @@ const FLOOR_Y := H - 175.0
 const GROUND_LINE_Y := H - 90.0
 const SQUIRREL_BASE_SCALE := 0.64
 # The packed pose's visible feet sit this far below the cell origin at scale 1.
-const SQUIRREL_FOOT_SOURCE_OFFSET := 68.17308
+const SQUIRREL_FOOT_SOURCE_OFFSET := 208.0
 const SQUIRREL_FOOT_OFFSET := SQUIRREL_FOOT_SOURCE_OFFSET * SQUIRREL_BASE_SCALE
 const SQUIRREL_Y := GROUND_LINE_Y - SQUIRREL_FOOT_OFFSET
 const TITLE_CARD_RECT := Rect2(90.0, 190.0, 900.0, 590.0)
@@ -155,7 +155,7 @@ func _ready() -> void:
     yellow_leaf_texture = load("res://assets/art/items/leaf_yellow_clean_v1.png")
     needle_texture = load("res://assets/art/items/pine_needle_cluster_v1.png")
     title_squirrel_texture = load("res://assets/art/squirrel_front_acorn_v1.png")
-    results_squirrel_texture = load("res://assets/art/squirrel_idle_head_repair_v1.png")
+    results_squirrel_texture = load("res://assets/art/squirrel_idle_full_v2.png")
     bark_texture = load("res://assets/art/ui_textures/oak_bark_tile_v1.png")
     pause_log_texture = load("res://assets/art/ui_textures/pause_log_v1.png")
     moss_texture = load("res://assets/art/ui_textures/moss_panel_tile_v1.png")
@@ -202,8 +202,10 @@ func _make_squirrel() -> void:
     for animation in ["idle", "run_left", "run_right", "flatten", "pop"]:
         frames.add_animation(animation)
         frames.set_animation_speed(animation, 8.0 if animation.begins_with("run") else 5.0)
-        frames.set_animation_loop(animation, animation != "flatten")
-        var indexes := [8] if animation == "idle" else [0, 1, 2, 3] if animation == "run_left" else [4, 5, 6, 7] if animation == "run_right" else [9, 10] if animation == "flatten" else [11, 8]
+        frames.set_animation_loop(animation, animation != "flatten" and animation != "pop")
+        # Both directions use the intact left-run cells. Rightward motion
+        # mirrors them at runtime; the old right-run source has clipped tails.
+        var indexes := [8] if animation == "idle" else [0, 1, 2, 3] if animation == "run_left" else [0, 1, 2, 3] if animation == "run_right" else [9, 10] if animation == "flatten" else [9, 11, 8]
         for index in indexes:
             frames.add_frame(animation, _sheet_frame(index))
     squirrel.sprite_frames = frames
@@ -273,6 +275,7 @@ func _update_map_crossing(delta: float) -> void:
     squirrel.scale = Vector2.ONE * SQUIRREL_BASE_SCALE * 0.42
     var tangent := path[0].bezier_derivative(path[1], path[2], path[3], progress)
     squirrel.rotation = clampf(tangent.angle() * 0.16, -0.12, 0.12)
+    squirrel.flip_h = crossing_target_page > crossing_start_page
     squirrel.play("run_right" if crossing_target_page > crossing_start_page else "run_left")
     if crossing_time <= 0.0:
         map_page = crossing_target_page
@@ -333,7 +336,7 @@ func _update_play(delta: float) -> void:
     player_x = move_toward(player_x, player_target_x, delta * 1320.0)
     if absf(player_x - player_target_x) > 12.0:
         _reset_squirrel_visual()
-        squirrel.flip_h = false
+        squirrel.flip_h = player_target_x > player_x
         squirrel.play("run_left" if player_target_x < player_x else "run_right")
     else:
         if squirrel.animation != "idle": squirrel.play("idle")
