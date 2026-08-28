@@ -119,6 +119,8 @@ func _init() -> void:
             expect(canopy.theme.night and canopy.theme.fireflies and canopy.theme.background == "high_canopy_night", "level %d uses night fireflies" % level)
         if level >= 46:
             expect(canopy.theme.lightning and canopy.theme.finale_stage == level - 45 and canopy.theme.branch_mode == "sway", "level %d storm stage metadata" % level)
+            var lightning_events: Array = canopy.events.filter(func(event): return event.kind == "lightning")
+            expect(not lightning_events.is_empty() and lightning_events.all(func(event): return is_equal_approx(float(event.duration), LevelData.LIGHTNING_FLASH_DURATION)), "level %d uses the extended lightning flash" % level)
             expect(bool(canopy.theme.get("gusts", false)) == (level >= 47), "storm gust escalation")
             expect(bool(canopy.theme.get("predators", false)) == (level >= 48), "storm predator escalation")
             expect(bool(canopy.theme.get("night", false)) == (level >= 49), "storm night escalation")

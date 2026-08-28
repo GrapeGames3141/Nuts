@@ -417,8 +417,16 @@ func _init() -> void:
     assert(midpoint_visibility < center_visibility and midpoint_visibility > scene.NIGHT_BASE_VISIBILITY + 0.15)
     assert(scene._night_visibility_at(far_dark_point) <= scene.NIGHT_BASE_VISIBILITY + 0.01)
     assert(scene._night_world_modulate(far_dark_point).r < 0.30)
-    scene.lightning_flash = 0.22
+    scene.lightning_flash = LevelData.LIGHTNING_FLASH_DURATION
     assert(is_equal_approx(scene._night_visibility_at(far_dark_point), 1.0))
+    scene.lightning_flash = 0.0
+    scene._start_level(46)
+    assert(scene.definition.theme.lightning and not bool(scene.definition.theme.get("night", false)) and not bool(scene.definition.theme.get("fireflies", false)))
+    var storm_dark_point := Vector2(scene.LANE_X[2], 700.0)
+    assert(scene._night_visibility_at(storm_dark_point) <= scene.NIGHT_BASE_VISIBILITY + 0.01)
+    assert(scene._night_world_modulate(storm_dark_point).r < 0.30)
+    scene.lightning_flash = LevelData.LIGHTNING_FLASH_DURATION
+    assert(is_equal_approx(scene._night_visibility_at(storm_dark_point), 1.0))
     scene.lightning_flash = 0.0
     scene._start_level(50)
     assert(scene.definition.theme.lightning and scene.definition.theme.finale_stage == 5)
@@ -426,14 +434,14 @@ func _init() -> void:
     scene.logic.progress = 2
     assert(scene._finale_stage_label() == "FINALE PHASE 3 / 5")
     var flash_collectible := {"kind":"acorn", "phase":"falling", "lane":2, "base_x":scene.LANE_X[2], "x":scene.LANE_X[2]}
-    var lightning := {"kind":"lightning", "phase":"warning", "warning":0.8, "duration":0.22, "direction":0, "age":0.0, "y":-120.0}
+    var lightning := {"kind":"lightning", "phase":"warning", "warning":0.8, "duration":LevelData.LIGHTNING_FLASH_DURATION, "direction":0, "age":0.0, "y":-120.0}
     scene.drops = [flash_collectible, lightning]
     scene.lightning_flash = 0.0
     scene._move_drop(lightning, 0.4)
     assert(lightning.phase == "warning" and is_zero_approx(scene.lightning_flash) and flash_collectible.lane == 2)
     assert(scene._lightning_warning_strength() >= 0.49 and scene._lightning_warning_strength() <= 0.51)
     scene._move_drop(lightning, 0.41)
-    assert(lightning.phase == "active" and scene.lightning_flash > 0.0 and flash_collectible.lane == 2)
+    assert(lightning.phase == "active" and is_equal_approx(scene.lightning_flash, LevelData.LIGHTNING_FLASH_DURATION) and flash_collectible.lane == 2)
     scene._start_level(50)
     assert(is_zero_approx(scene.lightning_flash) and scene.drops.is_empty())
 

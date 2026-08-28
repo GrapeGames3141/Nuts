@@ -671,11 +671,14 @@ func _firefly_centers() -> Array[Vector2]:
     return centers
 
 func _night_visibility_at(point: Vector2) -> float:
-    if not bool(definition.get("theme", {}).get("night", false)):
+    var theme: Dictionary = definition.get("theme", {})
+    if not bool(theme.get("night", false)) and not bool(theme.get("lightning", false)):
         return 1.0
     if lightning_flash > 0.0:
         return 1.0
     var visibility := NIGHT_BASE_VISIBILITY
+    if not bool(theme.get("fireflies", false)):
+        return visibility
     for light_center in _firefly_centers():
         var proximity := 1.0 - clampf(point.distance_to(light_center) / FIREFLY_LIGHT_RADIUS, 0.0, 1.0)
         var smooth_light := proximity * proximity * (3.0 - 2.0 * proximity)

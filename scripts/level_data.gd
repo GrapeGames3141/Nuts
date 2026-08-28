@@ -1,6 +1,8 @@
 class_name LevelData
 extends RefCounted
 
+const LIGHTNING_FLASH_DURATION := 0.36
+
 const VARIANTS := ["Oak", "Redcap", "Striped", "Gold"]
 const RECIPES := [
     [0, 1, 0], [1, 2, 0], [2, 0, 1], [0, 1, 2, 0],
@@ -151,7 +153,7 @@ static func make(level_number: int, seed: int = 1) -> Dictionary:
             (storm_stage == 1 and recipe_index % 2 == 0) or
             (storm_stage >= 2 and (recipe_index == 0 or recipe_index == 3)))
         if schedule_lightning:
-            result.events.append({"time": t + 0.25, "kind": "lightning", "target": false, "warning": 0.85, "duration": 0.22})
+            result.events.append({"time": t + 0.25, "kind": "lightning", "target": false, "warning": 0.85, "duration": LIGHTNING_FLASH_DURATION})
         t += maxf(2.35, 3.6 - i * 0.08)
     result.events.sort_custom(func(a, b): return a.time < b.time)
     return result

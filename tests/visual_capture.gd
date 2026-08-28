@@ -71,12 +71,15 @@ func _init() -> void:
         scene._spawn_event({"kind":"acorn", "family":"acorn", "variant":(scene.logic.current_variant() + 1) % 4, "lane":0, "speed":560.0})
         scene.drops[1].y = scene._play_surface_y() - 100.0
         await capture(scene, "play45_firefly_night", size)
-        scene._start_level(50)
-        scene._spawn_event({"kind":"lightning", "warning":0.85, "duration":0.22})
+        scene._start_level(46)
+        scene._spawn_event({"kind":"lightning", "warning":0.85, "duration":LevelData.LIGHTNING_FLASH_DURATION})
         scene.drops[0].age = 0.42
-        await capture(scene, "play50_lightning_warning", size)
+        scene._spawn_event({"kind":"acorn", "family":"pinecone", "variant":scene.logic.current_variant(), "lane":2, "speed":620.0})
+        scene.drops[1].y = 700.0
+        await capture(scene, "play46_lightning_warning_dark", size)
         scene._move_drop(scene.drops[0], 0.44)
-        await capture(scene, "play50_lightning_flash", size)
+        await capture(scene, "play46_lightning_flash", size)
+        scene._start_level(50)
         scene.logic.progress = 3
         await capture(scene, "play50_finale_phase4", size)
         scene.paused = true; await capture(scene, "pause", size)
