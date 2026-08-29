@@ -1,12 +1,10 @@
 extends Node
 
 ## Bottom banner via Poing AdMob (Android/iOS). Config: res://config/admob.json
-## (see admob.example.json). Overlay survives boot → game scene changes.
+## (see admob.example.json). Poing's native bottom view owns banner geometry.
 
 const CONFIG_PATH := "res://config/admob.json"
 const EXAMPLE_PATH := "res://config/admob.example.json"
-const DISCLOSURE_HEIGHT := 14.0
-const OVERLAY_LAYER := 100
 const RELAYOUT_SETTLE_SECONDS := 0.22
 
 # Closed-test / Play policy: serve Google's official test banner, not live ads.
@@ -18,12 +16,8 @@ const GOOGLE_TEST_ANDROID_BANNER_UNIT_ID := "ca-app-pub-3940256099942544/6300978
 
 var _config: Dictionary = {}
 var _ad_view: Variant
-var _disclosure: Label
-var _overlay: CanvasLayer
-var _overlay_root: Control
 var _sdk_initialized := false
 var _banner_logical_height := 60.0
-var _banner_requested := false
 var _loaded_placement := ""
 var _relayout_generation := 0
 var _keyboard_open := false
@@ -31,7 +25,6 @@ var _keyboard_open := false
 
 func _ready() -> void:
 	_reload_config()
-	call_deferred("_ensure_overlay")
 	if _platform_supports_ads() and ads_enabled():
 		set_process(true)
 		_initialize_mobile_ads()
@@ -99,10 +92,19 @@ func ads_enabled() -> bool:
 			return true
 
 
+func native_banner_height() -> float:
+	# Diagnostics only: Poing owns this native creative outside Godot's content surface.
+	return _banner_logical_height if _should_show_ads() else 0.0
+
+
+func game_content_reserve_height() -> float:
+	# AdPosition.BOTTOM already accounts for the native creative and Android safe inset.
+	return 0.0
+
+
 func banner_height() -> float:
-	if not _should_show_ads():
-		return 0.0
-	return _banner_logical_height + DISCLOSURE_HEIGHT + _bottom_inset()
+	# Deprecated compatibility alias. New callers must name the contract explicitly.
+	return game_content_reserve_height()
 
 
 func attach_to(_host: Node = null) -> void:
@@ -115,12 +117,8 @@ func sync_banner() -> void:
 		return
 	if _keyboard_is_open():
 		_hide_native_banner()
-		_ensure_overlay()
-		_ensure_disclosure()
 		return
 
-	_ensure_overlay()
-	_ensure_disclosure()
 	if _sdk_initialized:
 		_show_banner()
 	else:
@@ -128,13 +126,9 @@ func sync_banner() -> void:
 
 
 func detach() -> void:
-	_banner_requested = false
 	_loaded_placement = ""
 	_relayout_generation += 1
 	_destroy_banner()
-	if is_instance_valid(_disclosure):
-		_disclosure.queue_free()
-	_disclosure = null
 
 
 func _connect_layout_signals() -> void:
@@ -149,7 +143,6 @@ func _connect_layout_signals() -> void:
 
 
 func _on_viewport_size_changed() -> void:
-	_layout_disclosure()
 	_schedule_relayout()
 
 
@@ -183,12 +176,10 @@ func _relayout_banner() -> void:
 	if _keyboard_is_open():
 		_keyboard_open = true
 		_hide_native_banner()
-		_layout_disclosure()
 		return
 	_keyboard_open = false
 	if _ad_view != null and _placement_signature() == _loaded_placement:
 		_anchor_banner()
-		_layout_disclosure()
 		return
 	sync_banner()
 
@@ -249,23 +240,6 @@ func banner_unit_id_for(product_key: String, platform_name: String) -> String:
 
 func _banner_unit_id() -> String:
 	return banner_unit_id_for(active_product_key(), OS.get_name())
-
-
-func _ensure_overlay() -> void:
-	if is_instance_valid(_overlay) and is_instance_valid(_overlay_root):
-		return
-	var root := get_tree().root
-	if root == null:
-		return
-	_overlay = CanvasLayer.new()
-	_overlay.name = "AdBarOverlay"
-	_overlay.layer = OVERLAY_LAYER
-	_overlay_root = Control.new()
-	_overlay_root.name = "AdBarRoot"
-	_overlay_root.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	_overlay_root.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	root.add_child(_overlay)
-	_overlay.add_child(_overlay_root)
 
 
 func _initialize_mobile_ads(on_ready: Callable = Callable()) -> void:
@@ -330,10 +304,7 @@ func _show_banner() -> void:
 		return
 
 	_destroy_banner()
-	_banner_requested = true
 	_loaded_placement = _placement_signature()
-	_ensure_overlay()
-	_ensure_disclosure()
 
 	var ad_view_api: Variant = load("res://addons/admob/gdscript/src/api/AdView.gd")
 	var ad_position_api: Variant = load("res://addons/admob/gdscript/src/api/core/AdPosition.gd")
@@ -343,7 +314,6 @@ func _show_banner() -> void:
 	var ad_listener: Variant = ad_listener_api.new()
 	ad_listener.on_ad_loaded = _on_banner_loaded
 	ad_listener.on_ad_failed_to_load = func(error: Variant) -> void:
-		_banner_requested = false
 		_loaded_placement = ""
 		push_warning("AdBarService: banner failed: %s" % error.message)
 
@@ -363,7 +333,6 @@ func _on_banner_loaded() -> void:
 	var px := float(_ad_view.get_height_in_pixels())
 	if px > 0.0:
 		_banner_logical_height = _pixels_to_viewport_y(px)
-	_ensure_disclosure()
 	var tree := get_tree()
 	if tree != null and is_instance_valid(tree.current_scene):
 		tree.current_scene.queue_redraw()
@@ -388,44 +357,9 @@ func _destroy_banner() -> void:
 	_ad_view = null
 
 
-func _ensure_disclosure() -> void:
-	_ensure_overlay()
-	if not is_instance_valid(_overlay_root):
-		return
-	if is_instance_valid(_disclosure) and _disclosure.get_parent() == _overlay_root:
-		_layout_disclosure()
-		return
-	if is_instance_valid(_disclosure):
-		_disclosure.queue_free()
-	_disclosure = Label.new()
-	_disclosure.name = "AdDisclosure"
-	_disclosure.text = "Ad"
-	_disclosure.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_disclosure.add_theme_font_size_override("font_size", 10)
-	_disclosure.add_theme_color_override("font_color", Color(1, 1, 1, 0.7))
-	_overlay_root.add_child(_disclosure)
-	_layout_disclosure()
-
-
-func _layout_disclosure() -> void:
-	if not is_instance_valid(_disclosure):
-		return
-	_disclosure.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_WIDE)
-	_disclosure.offset_top = -DISCLOSURE_HEIGHT - _bottom_inset()
-	_disclosure.offset_bottom = -_bottom_inset()
-
-
 func _pixels_to_viewport_y(pixels: float) -> float:
 	var window_h := float(DisplayServer.window_get_size().y)
 	if window_h <= 0.0:
 		return pixels
 	var viewport_h := float(get_viewport().get_visible_rect().size.y)
 	return pixels * (viewport_h / window_h)
-
-
-func _bottom_inset() -> float:
-	var safe := DisplayServer.get_display_safe_area()
-	var window_h := DisplayServer.window_get_size().y
-	if window_h <= 0:
-		return 0.0
-	return _pixels_to_viewport_y(maxf(0.0, float(window_h - safe.end.y)))

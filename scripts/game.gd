@@ -669,9 +669,9 @@ func _ad_bottom_reserve() -> float:
     if validation_ad_reserve > 0.0:
         return validation_ad_reserve
     var ad_service := get_node_or_null("/root/AdBarService")
-    if ad_service == null or not ad_service.has_method("banner_height"):
+    if ad_service == null or not ad_service.has_method("game_content_reserve_height"):
         return 0.0
-    return maxf(0.0, float(ad_service.call("banner_height")))
+    return maxf(0.0, float(ad_service.call("game_content_reserve_height")))
 
 func _content_bottom_y() -> float:
     return H - _ad_bottom_reserve()
