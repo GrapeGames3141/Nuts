@@ -9,10 +9,9 @@ const RELAYOUT_SETTLE_SECONDS := 0.22
 
 # Closed-test / Play policy: serve Google's official test banner, not live ads.
 const GOOGLE_TEST_ANDROID_BANNER_UNIT_ID := "ca-app-pub-3940256099942544/6300978111"
-# TODO(ads-live): uncomment these and return them from banner_unit_id_for()
-# when leaving closed test.
-# const PEREGRINE_ANDROID_BANNER_UNIT_ID := "ca-app-pub-2846735043546429/6983531078"
-# const PIGEON_ANDROID_BANNER_UNIT_ID := "ca-app-pub-2846735043546429/6675625496"
+# TODO(ads-live): set this to the production Nuts banner and return it from
+# banner_unit_id_for() when leaving closed test.
+# const NUTS_ANDROID_BANNER_UNIT_ID := "ca-app-pub-2846735043546429/REPLACE_ME"
 
 var _config: Dictionary = {}
 var _ad_view: Variant
@@ -223,11 +222,9 @@ func active_product_key() -> String:
 func banner_unit_id_for(product_key: String, platform_name: String) -> String:
 	var platform_key := "ios" if platform_name == "iOS" else "android"
 	if platform_key == "android":
-		# TODO(ads-live): restore production units instead of Google's test banner.
+		# TODO(ads-live): restore the production Nuts banner instead of Google's test unit.
 		return GOOGLE_TEST_ANDROID_BANNER_UNIT_ID
-		# if product_key == "pigeon":
-		# 	return PIGEON_ANDROID_BANNER_UNIT_ID
-		# return PEREGRINE_ANDROID_BANNER_UNIT_ID
+		# return NUTS_ANDROID_BANNER_UNIT_ID
 	var products: Dictionary = _config.get("products", {})
 	var product: Dictionary = products.get(product_key, {})
 	var configured := str(product.get("%s_banner_unit_id" % platform_key, "")).strip_edges()

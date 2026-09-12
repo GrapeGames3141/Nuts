@@ -3,8 +3,15 @@
 *.import
 *.tmp
 *.apk
+*.aab
+*.keystore
+*.jks
+export_credentials.cfg
+*service-account*.json
 build/*
 !build/.gdignore
+builds/*
+!builds/.gdignore
 android/build/
 config/admob.json
 *.log

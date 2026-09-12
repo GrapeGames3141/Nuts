@@ -13,6 +13,14 @@ func _init() -> void:
 	assert(config.get_value("preset.0.options", "version/code", 0) == 23)
 	assert(config.get_value("preset.0.options", "version/name", "") == "1.0.22")
 	assert(config.get_value("preset.0.options", "launcher_icons/main_192x192", "") == "res://assets/art/game_icon.png")
+	# Both packages stay in the com.grapegames namespace; debug is suffixed so a
+	# sideloaded build installs alongside the Play build instead of replacing it.
+	assert(config.get_value("preset.0.options", "package/unique_name", "") == "com.grapegames.nuts.debug")
+	assert(config.get_value("preset.1", "name", "") == "Android Play")
+	assert(config.get_value("preset.1.options", "gradle_build/export_format", 0) == 1)
+	assert(config.get_value("preset.1.options", "package/unique_name", "") == "com.grapegames.nuts")
+	assert(config.get_value("preset.1.options", "permissions/internet", false))
+	assert(config.get_value("preset.1.options", "permissions/access_network_state", false))
 	var project := ConfigFile.new()
 	assert(project.load("res://project.godot") == OK)
 	assert(project.get_value("application", "config/icon", "") == "res://assets/art/game_icon.png")
