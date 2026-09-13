@@ -33,7 +33,9 @@ Copy them; do not generate a new keystore.
 Deploy workflow: [`.github/workflows/deploy-android.yml`](../.github/workflows/deploy-android.yml)
 
 - Triggers on push to `main`/`master` and **workflow_dispatch**
-- Signs an AAB and uploads it to Play **internal** track
+- Signs an AAB and uploads it to Play **closed testing** (`alpha`) track
+  — `alpha` is the Play API identifier for the default Closed testing
+  track; a custom-named closed track would use its own name instead
 - It does not publish GitHub Actions artifacts
 
 Export preset: `Android Play`.
@@ -45,8 +47,8 @@ Export preset: `Android Play`.
 - [ ] Grant service account `github-actions@advance-anvil-449102-v7.iam.gserviceaccount.com` **Release to production, exclude devices, and use Play App Signing** on this app (same grant as Peregrine)
 - [ ] Store settings → Website = `https://patguettler.github.io`
 - [ ] Privacy policy = `https://patguettler.github.io/privacy-policy.html`
-- [ ] Internal testing testers list + opt-in
-- [ ] After first CI upload: install from the internal testing link
+- [ ] Closed testing: create the tester list (email list or Google Group) and opt in
+- [ ] After first CI upload: install from the closed testing opt-in link
 - [ ] Later: store listing, **Contains ads**, **Data safety**, content rating
 
 Shared GrapeGames privacy policy:

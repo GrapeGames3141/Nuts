@@ -1,4 +1,4 @@
-name: Deploy Godot Android - Internal Test
+name: Deploy Godot Android - Closed Test
 
 on:
   push:
@@ -147,11 +147,11 @@ jobs:
           GODOT_ANDROID_KEYSTORE_RELEASE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
         run: ./scripts/ci/godot-export-android.sh
 
-      - name: Upload to Play Store Internal track
+      - name: Upload to Play Store Closed Testing track
         uses: r0adkll/upload-google-play@v1
         with:
           serviceAccountJsonPlainText: ${{ secrets.SERVICE_ACCOUNT_JSON }}
           packageName: com.grapegames.nuts
           releaseFiles: builds/android/Nuts.aab
-          tracks: internal
+          tracks: alpha
           status: completed
